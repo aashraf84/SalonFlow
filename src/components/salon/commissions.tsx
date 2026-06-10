@@ -67,9 +67,9 @@ function formatDate(dateStr: string): string {
 function getTypeBadge(type: CommissionType): { label: string; className: string } {
   switch (type) {
     case 'service':
-      return { label: 'Service', className: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800' }
+      return { label: 'Service', className: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800' }
     case 'product':
-      return { label: 'Product', className: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800' }
+      return { label: 'Product', className: 'bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800' }
     case 'bonus':
       return { label: 'Bonus', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' }
     case 'referral':
@@ -364,8 +364,8 @@ export function CommissionModule() {
             value={formatCurrency(stats.thisPeriodTotal)}
             subtitle="Current month"
             icon={TrendingUp}
-            accentGradient="from-teal-500/30 to-cyan-500/30"
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            accentGradient="from-rose-500/30 to-pink-500/30"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
         </StaggerItem>
         <StaggerItem>
@@ -374,8 +374,8 @@ export function CommissionModule() {
             value={stats.staffCount.toString()}
             subtitle="With commissions"
             icon={Users}
-            accentGradient="from-cyan-500/30 to-teal-500/30"
-            iconBg="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            accentGradient="from-pink-500/30 to-rose-500/30"
+            iconBg="bg-pink-500/10 text-pink-600 dark:text-pink-400"
           />
         </StaggerItem>
       </StaggerContainer>
@@ -385,8 +385,8 @@ export function CommissionModule() {
         <GlassCard variant="default" glow delay={0.3} className="p-6">
           <div className="mb-4">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-500/10">
-                <Users className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-rose-500/10">
+                <Users className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               </div>
               <div>
                 <h3 className="text-[15px] font-semibold">Period Summary</h3>
@@ -404,7 +404,7 @@ export function CommissionModule() {
                 className="p-3 rounded-xl border border-border/30 hover:border-border/60 transition-all"
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-[10px] font-bold shrink-0">
+                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-[10px] font-bold shrink-0">
                     {summary.name.charAt(0)}
                   </div>
                   <p className="text-sm font-semibold truncate">{summary.name}</p>
@@ -513,7 +513,7 @@ export function CommissionModule() {
                     >
                       <TableCell className="pl-6 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-[10px] font-bold shrink-0">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-[10px] font-bold shrink-0">
                             {commission.staffName.charAt(0)}
                           </div>
                           <p className="text-sm font-medium">{commission.staffName}</p>

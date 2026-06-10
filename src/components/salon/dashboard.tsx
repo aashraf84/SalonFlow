@@ -356,8 +356,8 @@ export function DashboardModule() {
             value={formatNumber(data.todayStats.appointmentsCount)}
             subtitle={`${data.todayStats.completedAppointments} completed`}
             icon={CalendarDays}
-            accentGradient="from-teal-500/30 to-emerald-500/30"
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            accentGradient="from-rose-500/30 to-fuchsia-500/30"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
             delay={0}
           />
         </StaggerItem>
@@ -367,8 +367,8 @@ export function DashboardModule() {
             value={formatCurrency(data.todayStats.revenue)}
             subtitle="From invoices"
             icon={DollarSign}
-            accentGradient="from-emerald-500/30 to-green-500/30"
-            iconBg="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            accentGradient="from-fuchsia-500/30 to-green-500/30"
+            iconBg="bg-fuchsia-500/10 text-emerald-600 dark:text-emerald-400"
             delay={0.06}
           />
         </StaggerItem>
@@ -378,8 +378,8 @@ export function DashboardModule() {
             value={formatCurrency(data.monthlyStats.revenue)}
             subtitle={`${formatNumber(data.monthlyStats.appointmentsCount)} appointments`}
             icon={TrendingUp}
-            accentGradient="from-cyan-500/30 to-teal-500/30"
-            iconBg="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            accentGradient="from-pink-500/30 to-rose-500/30"
+            iconBg="bg-pink-500/10 text-pink-600 dark:text-pink-400"
             delay={0.12}
           />
         </StaggerItem>
@@ -424,8 +424,8 @@ export function DashboardModule() {
         <GlassCard variant="default" glow delay={0.3} className="p-6">
           <div className="mb-4">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-500/10">
-                <CalendarDays className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-rose-500/10">
+                <CalendarDays className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               </div>
               <div>
                 <h3 className="text-[15px] font-semibold">Appointment Trends</h3>
@@ -466,7 +466,7 @@ export function DashboardModule() {
         <GlassCard variant="default" glow delay={0.35} className="p-6">
           <div className="mb-4">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/10">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-fuchsia-500/10">
                 <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
@@ -499,15 +499,15 @@ export function DashboardModule() {
           <div className="p-6 pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500/10">
-                  <Clock className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-pink-500/10">
+                  <Clock className="w-4 h-4 text-pink-600 dark:text-pink-400" />
                 </div>
                 <div>
                   <h3 className="text-[15px] font-semibold">Recent Appointments</h3>
                   <p className="text-[11px] text-muted-foreground">Latest across all branches</p>
                 </div>
               </div>
-              <PulseIndicator color="bg-emerald-500" />
+              <PulseIndicator color="bg-fuchsia-500" />
             </div>
           </div>
           <div className="max-h-96 overflow-y-auto">
@@ -632,8 +632,8 @@ export function DashboardModule() {
         <GlassCard variant="default" glow delay={0.5} className="p-6">
           <div className="mb-4">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500/10">
-                <Building2 className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-pink-500/10">
+                <Building2 className="w-4 h-4 text-pink-600 dark:text-pink-400" />
               </div>
               <div>
                 <h3 className="text-[15px] font-semibold">Branch Performance</h3>
@@ -657,14 +657,14 @@ export function DashboardModule() {
                     transition={{ delay: i * 0.06, type: 'spring', stiffness: 200 }}
                     className="flex items-center gap-4 p-3 rounded-xl border border-border/30 hover:border-border/60 hover:bg-foreground/[0.02] transition-all group"
                   >
-                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shrink-0 group-hover:bg-cyan-500/15 transition-colors">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 shrink-0 group-hover:bg-pink-500/15 transition-colors">
                       <Building2 className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{branch.branchName}</p>
                       <div className="mt-2 h-1.5 bg-muted/50 rounded-full overflow-hidden">
                         <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-500"
+                          className="h-full rounded-full bg-gradient-to-r from-rose-500 to-pink-500"
                           initial={{ width: 0 }}
                           animate={{ width: `${percentage}%` }}
                           transition={{ delay: 0.5 + i * 0.1, duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -679,7 +679,7 @@ export function DashboardModule() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-emerald-500">
+                    <div className="flex items-center gap-1 text-fuchsia-500">
                       <ArrowUpRight className="w-3 h-3" />
                     </div>
                   </motion.div>
@@ -724,7 +724,7 @@ export function DashboardModule() {
                     </div>
                     <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
                       <motion.div
-                        className={cn('h-full rounded-full', tierBarColors[tier] || 'bg-teal-400')}
+                        className={cn('h-full rounded-full', tierBarColors[tier] || 'bg-rose-400')}
                         initial={{ width: 0 }}
                         animate={{ width: `${percentage}%` }}
                         transition={{ delay: 0.6 + i * 0.1, duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -764,7 +764,7 @@ export function DashboardModule() {
           <AnimatedInsightCard
             title="Revenue Forecast"
             icon={TrendingUp}
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
             metric="+12.3%"
             insight={data.monthlyStats.revenue > 0
               ? `Based on historical data, monthly revenue is trending up. With PKR ${formatNumber(data.monthlyStats.revenue)} this month, you're on track for a strong quarter.`
@@ -782,7 +782,7 @@ export function DashboardModule() {
           <AnimatedInsightCard
             title="Peak Hours"
             icon={Clock}
-            iconBg="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            iconBg="bg-pink-500/10 text-pink-600 dark:text-pink-400"
             metric="2-5 PM"
             insight="Analysis shows peak booking times are between 2:00 PM and 5:00 PM. Consider adding more staff during these hours to reduce wait times."
             delay={0.75}

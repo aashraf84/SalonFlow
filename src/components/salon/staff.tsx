@@ -99,7 +99,7 @@ const roleBadgeColors: Record<string, string> = {
   manager: 'bg-amber-100 text-amber-700 border-amber-200',
   stylist: 'bg-purple-100 text-purple-700 border-purple-200',
   beautician: 'bg-pink-100 text-pink-700 border-pink-200',
-  therapist: 'bg-teal-100 text-teal-700 border-teal-200',
+  therapist: 'bg-rose-100 text-rose-700 border-rose-200',
   receptionist: 'bg-sky-100 text-sky-700 border-sky-200',
 }
 
@@ -120,12 +120,12 @@ const avatarColors = [
   'bg-amber-500',
   'bg-violet-500',
   'bg-pink-500',
-  'bg-teal-500',
+  'bg-rose-500',
   'bg-sky-500',
   'bg-emerald-500',
   'bg-indigo-500',
   'bg-fuchsia-500',
-  'bg-cyan-500',
+  'bg-pink-500',
 ]
 
 function getInitials(firstName: string, lastName: string) {

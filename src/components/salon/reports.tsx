@@ -108,7 +108,7 @@ const reportTypes: ReportType[] = [
     title: 'Financial Reports',
     description: 'P&L statement, expense analysis, cash flow',
     icon: <BarChart3 className="h-6 w-6" />,
-    color: 'text-teal-500 bg-teal-50 dark:bg-teal-950',
+    color: 'text-rose-500 bg-rose-50 dark:bg-rose-950',
     apiEndpoint: '/api/finance',
   },
   {

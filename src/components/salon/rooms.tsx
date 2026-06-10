@@ -73,7 +73,7 @@ interface BranchOption {
 }
 
 const roomTypeBadgeColors: Record<string, string> = {
-  treatment: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  treatment: 'bg-pink-100 text-pink-700 border-pink-200',
   spa: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   consultation: 'bg-amber-100 text-amber-700 border-amber-200',
   waiting: 'bg-gray-100 text-gray-700 border-gray-200',

@@ -81,7 +81,7 @@ function getStatusBadge(status: WaitStatus): { label: string; className: string 
     case 'waiting':
       return { label: 'Waiting', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' }
     case 'notified':
-      return { label: 'Notified', className: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800' }
+      return { label: 'Notified', className: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800' }
     case 'booked':
       return { label: 'Booked', className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800' }
     case 'cancelled':
@@ -414,8 +414,8 @@ export function WaitlistModule() {
             value={stats.notifiedToday.toString()}
             subtitle="Sent notifications"
             icon={Bell}
-            accentGradient="from-teal-500/30 to-cyan-500/30"
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            accentGradient="from-rose-500/30 to-pink-500/30"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
         </StaggerItem>
         <StaggerItem>
@@ -434,8 +434,8 @@ export function WaitlistModule() {
             value={stats.avgWaitTime}
             subtitle="Current average"
             icon={Timer}
-            accentGradient="from-cyan-500/30 to-teal-500/30"
-            iconBg="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            accentGradient="from-pink-500/30 to-rose-500/30"
+            iconBg="bg-pink-500/10 text-pink-600 dark:text-pink-400"
           />
         </StaggerItem>
       </StaggerContainer>
@@ -515,7 +515,7 @@ export function WaitlistModule() {
                       <div className={cn(
                         'flex items-center justify-center w-10 h-10 rounded-full text-white text-sm font-bold shrink-0',
                         entry.status === 'waiting' ? 'bg-gradient-to-br from-amber-400 to-orange-500' :
-                        entry.status === 'notified' ? 'bg-gradient-to-br from-teal-400 to-cyan-500' :
+                        entry.status === 'notified' ? 'bg-gradient-to-br from-rose-400 to-pink-500' :
                         entry.status === 'booked' ? 'bg-gradient-to-br from-emerald-400 to-green-500' :
                         'bg-gradient-to-br from-gray-400 to-gray-500'
                       )}>
@@ -577,7 +577,7 @@ export function WaitlistModule() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-7 text-[10px] gap-1 text-teal-600 border-teal-200 hover:bg-teal-500/10"
+                                className="h-7 text-[10px] gap-1 text-rose-600 border-rose-200 hover:bg-rose-500/10"
                                 onClick={() => handleNotify(entry.id)}
                               >
                                 <Bell className="h-3 w-3" />

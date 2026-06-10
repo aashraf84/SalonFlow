@@ -42,7 +42,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* macOS Tahoe glass colors */
+  /* Rose glass colors */
   --color-glass: var(--glass);
   --color-glass-border: var(--glass-border);
   --color-glass-hover: var(--glass-hover);
@@ -54,99 +54,99 @@
 /* ─── Base Layer ──────────────────────────────────────────────────────────── */
 
 @layer base {
-  /* ─── macOS Tahoe Light Theme ─────────────────────────────────────────── */
+  /* ─── Rose Light Theme ─────────────────────────────────────────────── */
   :root {
     --radius: 0.75rem;
 
-    /* Core surfaces */
-    --background: oklch(0.97 0.005 280);
-    --foreground: oklch(0.15 0.01 280);
+    /* Core surfaces - warm pinkish white */
+    --background: oklch(0.97 0.008 340);
+    --foreground: oklch(0.15 0.02 340);
 
     /* Card / Panel - translucent white */
-    --card: oklch(1 0 0 / 72%);
-    --card-foreground: oklch(0.15 0.01 280);
+    --card: oklch(1 0.005 340 / 72%);
+    --card-foreground: oklch(0.15 0.02 340);
 
     /* Popover */
-    --popover: oklch(1 0 0 / 85%);
-    --popover-foreground: oklch(0.15 0.01 280);
+    --popover: oklch(1 0.005 340 / 85%);
+    --popover-foreground: oklch(0.15 0.02 340);
 
-    /* Primary - Tahoe deep teal */
-    --primary: oklch(0.45 0.12 200);
-    --primary-foreground: oklch(0.98 0.005 200);
+    /* Primary - Rich rose */
+    --primary: oklch(0.50 0.20 350);
+    --primary-foreground: oklch(0.98 0.005 350);
 
     /* Secondary */
-    --secondary: oklch(0.94 0.008 280);
-    --secondary-foreground: oklch(0.25 0.01 280);
+    --secondary: oklch(0.94 0.015 340);
+    --secondary-foreground: oklch(0.25 0.02 340);
 
     /* Muted */
-    --muted: oklch(0.94 0.006 280);
-    --muted-foreground: oklch(0.55 0.01 280);
+    --muted: oklch(0.94 0.012 340);
+    --muted-foreground: oklch(0.50 0.02 340);
 
-    /* Accent - Tahoe rose */
-    --accent: oklch(0.93 0.02 340);
-    --accent-foreground: oklch(0.30 0.08 340);
+    /* Accent - Soft fuchsia */
+    --accent: oklch(0.92 0.03 330);
+    --accent-foreground: oklch(0.30 0.10 330);
 
     /* Destructive */
     --destructive: oklch(0.55 0.22 25);
 
     /* Borders & Input */
-    --border: oklch(0.88 0.008 280);
-    --input: oklch(0.90 0.008 280);
-    --ring: oklch(0.45 0.12 200);
+    --border: oklch(0.90 0.012 340);
+    --input: oklch(0.91 0.012 340);
+    --ring: oklch(0.50 0.20 350);
 
-    /* Chart colors - Tahoe palette */
-    --chart-1: oklch(0.55 0.15 200);
-    --chart-2: oklch(0.60 0.18 160);
-    --chart-3: oklch(0.55 0.20 340);
-    --chart-4: oklch(0.65 0.15 60);
-    --chart-5: oklch(0.60 0.18 280);
+    /* Chart colors - Rose palette */
+    --chart-1: oklch(0.55 0.20 350);
+    --chart-2: oklch(0.55 0.18 330);
+    --chart-3: oklch(0.60 0.15 300);
+    --chart-4: oklch(0.65 0.18 20);
+    --chart-5: oklch(0.60 0.12 280);
 
-    /* Sidebar - Tahoe translucent */
-    --sidebar: oklch(0.98 0.005 280 / 65%);
-    --sidebar-foreground: oklch(0.15 0.01 280);
-    --sidebar-primary: oklch(0.45 0.12 200);
-    --sidebar-primary-foreground: oklch(0.98 0.005 200);
-    --sidebar-accent: oklch(0.93 0.01 280);
-    --sidebar-accent-foreground: oklch(0.25 0.01 280);
-    --sidebar-border: oklch(0.88 0.008 280 / 60%);
-    --sidebar-ring: oklch(0.45 0.12 200);
+    /* Sidebar - Rose translucent */
+    --sidebar: oklch(0.98 0.012 340 / 65%);
+    --sidebar-foreground: oklch(0.15 0.02 340);
+    --sidebar-primary: oklch(0.50 0.20 350);
+    --sidebar-primary-foreground: oklch(0.98 0.005 350);
+    --sidebar-accent: oklch(0.93 0.015 340);
+    --sidebar-accent-foreground: oklch(0.25 0.02 340);
+    --sidebar-border: oklch(0.90 0.012 340 / 60%);
+    --sidebar-ring: oklch(0.50 0.20 350);
 
-    /* macOS Tahoe glass tokens */
-    --glass: oklch(1 0 0 / 55%);
-    --glass-border: oklch(1 0 0 / 35%);
-    --glass-hover: oklch(1 0 0 / 70%);
-    --vibrancy: oklch(0.97 0.005 280 / 60%);
-    --tahoe-accent: oklch(0.45 0.12 200);
-    --tahoe-accent-soft: oklch(0.55 0.15 200 / 15%);
+    /* Rose glass tokens */
+    --glass: oklch(1 0.005 340 / 55%);
+    --glass-border: oklch(1 0.005 340 / 35%);
+    --glass-hover: oklch(1 0.005 340 / 70%);
+    --vibrancy: oklch(0.97 0.012 340 / 60%);
+    --tahoe-accent: oklch(0.50 0.20 350);
+    --tahoe-accent-soft: oklch(0.55 0.20 350 / 15%);
   }
 
-  /* ─── macOS Tahoe Dark Theme ──────────────────────────────────────────── */
+  /* ─── Rose Dark Theme ──────────────────────────────────────────────── */
   .dark {
-    /* Core surfaces - deep space gray */
-    --background: oklch(0.13 0.005 280);
-    --foreground: oklch(0.93 0.005 280);
+    /* Core surfaces - deep warm dark */
+    --background: oklch(0.13 0.008 320);
+    --foreground: oklch(0.93 0.008 340);
 
     /* Card / Panel - translucent dark */
-    --card: oklch(0.18 0.008 280 / 60%);
-    --card-foreground: oklch(0.93 0.005 280);
+    --card: oklch(0.18 0.010 320 / 60%);
+    --card-foreground: oklch(0.93 0.008 340);
 
     /* Popover */
-    --popover: oklch(0.20 0.008 280 / 80%);
-    --popover-foreground: oklch(0.93 0.005 280);
+    --popover: oklch(0.20 0.010 320 / 80%);
+    --popover-foreground: oklch(0.93 0.008 340);
 
-    /* Primary - Tahoe bright teal */
-    --primary: oklch(0.65 0.15 200);
-    --primary-foreground: oklch(0.12 0.01 280);
+    /* Primary - Bright rose */
+    --primary: oklch(0.65 0.22 350);
+    --primary-foreground: oklch(0.12 0.01 340);
 
     /* Secondary */
-    --secondary: oklch(0.22 0.008 280);
-    --secondary-foreground: oklch(0.90 0.005 280);
+    --secondary: oklch(0.22 0.010 330);
+    --secondary-foreground: oklch(0.90 0.008 340);
 
     /* Muted */
-    --muted: oklch(0.22 0.008 280);
-    --muted-foreground: oklch(0.65 0.01 280);
+    --muted: oklch(0.22 0.010 330);
+    --muted-foreground: oklch(0.65 0.015 340);
 
-    /* Accent - Tahoe soft rose */
+    /* Accent - Muted pink */
     --accent: oklch(0.25 0.03 340);
     --accent-foreground: oklch(0.85 0.08 340);
 
@@ -156,32 +156,32 @@
     /* Borders & Input */
     --border: oklch(1 0 0 / 8%);
     --input: oklch(1 0 0 / 10%);
-    --ring: oklch(0.65 0.15 200);
+    --ring: oklch(0.65 0.22 350);
 
-    /* Chart colors - Tahoe dark palette */
-    --chart-1: oklch(0.65 0.18 200);
-    --chart-2: oklch(0.70 0.20 160);
-    --chart-3: oklch(0.65 0.22 340);
-    --chart-4: oklch(0.75 0.17 60);
-    --chart-5: oklch(0.70 0.20 280);
+    /* Chart colors - Rose dark palette */
+    --chart-1: oklch(0.65 0.22 350);
+    --chart-2: oklch(0.65 0.20 330);
+    --chart-3: oklch(0.70 0.17 300);
+    --chart-4: oklch(0.75 0.18 20);
+    --chart-5: oklch(0.70 0.15 280);
 
-    /* Sidebar - Tahoe dark translucent */
-    --sidebar: oklch(0.15 0.006 280 / 65%);
-    --sidebar-foreground: oklch(0.93 0.005 280);
-    --sidebar-primary: oklch(0.65 0.15 200);
-    --sidebar-primary-foreground: oklch(0.12 0.01 280);
-    --sidebar-accent: oklch(0.22 0.01 280);
-    --sidebar-accent-foreground: oklch(0.90 0.005 280);
+    /* Sidebar - Rose dark translucent */
+    --sidebar: oklch(0.15 0.010 330 / 65%);
+    --sidebar-foreground: oklch(0.93 0.008 340);
+    --sidebar-primary: oklch(0.65 0.22 350);
+    --sidebar-primary-foreground: oklch(0.12 0.01 340);
+    --sidebar-accent: oklch(0.22 0.012 340);
+    --sidebar-accent-foreground: oklch(0.90 0.008 340);
     --sidebar-border: oklch(1 0 0 / 8%);
-    --sidebar-ring: oklch(0.65 0.15 200);
+    --sidebar-ring: oklch(0.65 0.22 350);
 
-    /* macOS Tahoe dark glass tokens */
-    --glass: oklch(0.20 0.008 280 / 45%);
+    /* Rose dark glass tokens */
+    --glass: oklch(0.20 0.010 330 / 45%);
     --glass-border: oklch(1 0 0 / 10%);
-    --glass-hover: oklch(0.25 0.01 280 / 60%);
-    --vibrancy: oklch(0.15 0.006 280 / 50%);
-    --tahoe-accent: oklch(0.65 0.15 200);
-    --tahoe-accent-soft: oklch(0.55 0.15 200 / 15%);
+    --glass-hover: oklch(0.25 0.012 340 / 60%);
+    --vibrancy: oklch(0.15 0.010 330 / 50%);
+    --tahoe-accent: oklch(0.65 0.22 350);
+    --tahoe-accent-soft: oklch(0.55 0.20 350 / 15%);
   }
 
   * {
@@ -192,14 +192,14 @@
   }
 }
 
-/* ─── macOS Tahoe Animations & Effects ───────────────────────────────────── */
+/* ─── Rose Animations & Effects ─────────────────────────────────────────── */
 
 /* Smooth theme transition */
 html {
   transition: color-scheme 0.3s ease;
 }
 
-/* Scrollbar styling - macOS thin scrollbar */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -226,7 +226,7 @@ html {
   background: oklch(0.7 0 0 / 35%);
 }
 
-/* macOS Tahoe frosted glass utility */
+/* Frosted glass utility */
 .glass-effect {
   background: var(--glass);
   backdrop-filter: blur(40px) saturate(180%);
@@ -241,14 +241,14 @@ html {
   border: 1px solid var(--glass-border);
 }
 
-/* macOS Tahoe sidebar vibrancy */
+/* Sidebar vibrancy */
 .sidebar-vibrancy {
   background: var(--sidebar);
   backdrop-filter: blur(50px) saturate(180%);
   -webkit-backdrop-filter: blur(50px) saturate(180%);
 }
 
-/* macOS Tahoe header vibrancy */
+/* Header vibrancy */
 .header-vibrancy {
   background: var(--glass);
   backdrop-filter: blur(40px) saturate(180%);
@@ -256,7 +256,7 @@ html {
   border-bottom: 1px solid var(--glass-border);
 }
 
-/* macOS Tahoe card hover glow */
+/* Card hover glow */
 .card-glow {
   position: relative;
   overflow: hidden;
@@ -285,7 +285,7 @@ html {
   opacity: 1;
 }
 
-/* macOS dock-like bounce animation */
+/* Bounce animation */
 @keyframes dock-bounce {
   0%, 100% { transform: translateY(0); }
   30% { transform: translateY(-8px); }
@@ -296,7 +296,7 @@ html {
   animation: dock-bounce 0.6s ease-in-out;
 }
 
-/* macOS Tahoe shimmer effect for loading */
+/* Shimmer effect for loading */
 @keyframes tahoe-shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -313,17 +313,17 @@ html {
   animation: tahoe-shimmer 2s ease-in-out infinite;
 }
 
-/* Smooth page background gradient */
+/* Page background gradient - warm rose glow */
 .tahoe-bg {
   background:
     radial-gradient(ellipse 80% 50% at 50% -20%, var(--tahoe-accent-soft), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 0%, oklch(0.65 0.12 340 / 5%), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 0%, oklch(0.65 0.15 330 / 6%), transparent),
     var(--background);
 }
 
 .dark .tahoe-bg {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.30 0.08 200 / 20%), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 0%, oklch(0.30 0.06 340 / 10%), transparent),
+    radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.35 0.10 350 / 20%), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 0%, oklch(0.30 0.06 330 / 10%), transparent),
     var(--background);
 }

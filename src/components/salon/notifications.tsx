@@ -65,9 +65,9 @@ function getSeverityConfig(severity: NotificationSeverity) {
     case 'info':
       return {
         icon: Info,
-        iconBg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-        border: 'border-teal-500/20',
-        hoverBg: 'hover:bg-teal-500/[0.03]',
+        iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+        border: 'border-rose-500/20',
+        hoverBg: 'hover:bg-rose-500/[0.03]',
       }
     case 'warning':
       return {
@@ -282,8 +282,8 @@ export function NotificationModule() {
           animate={{ opacity: 1, x: 0 }}
           className="flex items-center gap-3"
         >
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-teal-500/10">
-            <Bell className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-rose-500/10">
+            <Bell className="w-5 h-5 text-rose-600 dark:text-rose-400" />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold">
                 {unreadCount > 9 ? '9+' : unreadCount}
@@ -328,8 +328,8 @@ export function NotificationModule() {
             value={notifications.length.toString()}
             subtitle="All notifications"
             icon={Info}
-            accentGradient="from-teal-500/30 to-cyan-500/30"
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            accentGradient="from-rose-500/30 to-pink-500/30"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
         </StaggerItem>
       </StaggerContainer>
@@ -465,10 +465,10 @@ export function NotificationModule() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 rounded-lg hover:bg-teal-500/10"
+                            className="h-7 w-7 p-0 rounded-lg hover:bg-rose-500/10"
                             onClick={() => markAsRead(notification.id)}
                           >
-                            <CheckCheck className="h-3.5 w-3.5 text-teal-500" />
+                            <CheckCheck className="h-3.5 w-3.5 text-rose-500" />
                           </Button>
                         )}
                         <Button

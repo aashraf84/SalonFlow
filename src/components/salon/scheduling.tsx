@@ -98,7 +98,7 @@ function getDayName(dateStr: string): string {
 function getShiftStatusBadge(status: string): { label: string; className: string } {
   switch (status) {
     case 'scheduled':
-      return { label: 'Scheduled', className: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800' }
+      return { label: 'Scheduled', className: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800' }
     case 'in_progress':
       return { label: 'In Progress', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800' }
     case 'completed':
@@ -441,8 +441,8 @@ export function SchedulingModule() {
           animate={{ opacity: 1, x: 0 }}
           className="flex items-center gap-3"
         >
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-teal-500/10">
-            <Calendar className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-500/10">
+            <Calendar className="w-5 h-5 text-rose-600 dark:text-rose-400" />
           </div>
           <div>
             <h2 className="text-lg font-bold">Scheduling & Attendance</h2>
@@ -466,8 +466,8 @@ export function SchedulingModule() {
             value={stats.onDuty.toString()}
             subtitle="Currently working"
             icon={UserCheck}
-            accentGradient="from-teal-500/30 to-cyan-500/30"
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            accentGradient="from-rose-500/30 to-pink-500/30"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
         </StaggerItem>
         <StaggerItem>
@@ -486,8 +486,8 @@ export function SchedulingModule() {
             value={`${stats.avgHours}h`}
             subtitle="Per staff member"
             icon={Timer}
-            accentGradient="from-cyan-500/30 to-teal-500/30"
-            iconBg="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            accentGradient="from-pink-500/30 to-rose-500/30"
+            iconBg="bg-pink-500/10 text-pink-600 dark:text-pink-400"
           />
         </StaggerItem>
         <StaggerItem>
@@ -595,7 +595,7 @@ export function SchedulingModule() {
                     >
                       <div className="p-3 text-sm font-medium border-r border-border/30 flex items-center">
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-[10px] font-bold shrink-0">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-[10px] font-bold shrink-0">
                             {name.charAt(0)}
                           </div>
                           <span className="truncate text-xs">{name}</span>
@@ -702,7 +702,7 @@ export function SchedulingModule() {
                         >
                           <TableCell className="pl-6 py-3">
                             <div className="flex items-center gap-2">
-                              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-[10px] font-bold shrink-0">
+                              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-[10px] font-bold shrink-0">
                                 {record.staffName.charAt(0)}
                               </div>
                               <div>

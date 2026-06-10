@@ -82,7 +82,7 @@ function getTierBadge(tier: string): { className: string; icon: React.ReactNode;
     case 'gold':
       return { className: 'bg-amber-100 text-amber-800 border-amber-300', icon: <Star className="h-3 w-3" />, label: 'Gold' }
     case 'platinum':
-      return { className: 'bg-cyan-100 text-cyan-800 border-cyan-300', icon: <Gem className="h-3 w-3" />, label: 'Platinum' }
+      return { className: 'bg-pink-100 text-pink-800 border-pink-300', icon: <Gem className="h-3 w-3" />, label: 'Platinum' }
     case 'vip':
       return { className: 'bg-purple-100 text-purple-800 border-purple-300', icon: <Crown className="h-3 w-3" />, label: 'VIP' }
     default:
@@ -544,7 +544,7 @@ export function CustomersModule() {
                             <AvatarFallback className={cn(
                               'text-xs font-medium',
                               customer.loyaltyTier === 'vip' ? 'bg-purple-100 text-purple-700' :
-                              customer.loyaltyTier === 'platinum' ? 'bg-cyan-100 text-cyan-700' :
+                              customer.loyaltyTier === 'platinum' ? 'bg-pink-100 text-pink-700' :
                               customer.loyaltyTier === 'gold' ? 'bg-amber-100 text-amber-700' :
                               'bg-gray-100 text-gray-700'
                             )}>
@@ -635,7 +635,7 @@ export function CustomersModule() {
                     <AvatarFallback className={cn(
                       'text-lg font-medium',
                       profileCustomer.loyaltyTier === 'vip' ? 'bg-purple-100 text-purple-700' :
-                      profileCustomer.loyaltyTier === 'platinum' ? 'bg-cyan-100 text-cyan-700' :
+                      profileCustomer.loyaltyTier === 'platinum' ? 'bg-pink-100 text-pink-700' :
                       profileCustomer.loyaltyTier === 'gold' ? 'bg-amber-100 text-amber-700' :
                       'bg-gray-100 text-gray-700'
                     )}>

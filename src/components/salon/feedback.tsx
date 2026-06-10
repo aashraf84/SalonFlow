@@ -306,8 +306,8 @@ export function FeedbackModule() {
             value={stats.totalReviews.toString()}
             subtitle="All time"
             icon={MessageSquare}
-            accentGradient="from-teal-500/30 to-cyan-500/30"
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            accentGradient="from-rose-500/30 to-pink-500/30"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
         </StaggerItem>
         <StaggerItem>
@@ -326,8 +326,8 @@ export function FeedbackModule() {
             value={`${stats.responseRate}%`}
             subtitle="Reviews responded to"
             icon={Reply}
-            accentGradient="from-cyan-500/30 to-teal-500/30"
-            iconBg="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            accentGradient="from-pink-500/30 to-rose-500/30"
+            iconBg="bg-pink-500/10 text-pink-600 dark:text-pink-400"
           />
         </StaggerItem>
       </StaggerContainer>
@@ -446,7 +446,7 @@ export function FeedbackModule() {
                   >
                     <div className="flex items-start gap-3">
                       {/* Avatar */}
-                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-sm font-bold shrink-0">
+                      <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-sm font-bold shrink-0">
                         {review.customerName.charAt(0).toUpperCase()}
                       </div>
 

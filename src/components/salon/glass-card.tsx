@@ -130,8 +130,8 @@ export function AnimatedMetricCard({
   value,
   subtitle,
   icon: Icon,
-  accentGradient = 'from-teal-500/20 to-cyan-500/20',
-  iconBg = 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  accentGradient = 'from-rose-500/20 to-pink-500/20',
+  iconBg = 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
   delay = 0,
 }: AnimatedMetricCardProps) {
   return (
@@ -322,7 +322,7 @@ export function AnimatedCounter({
 
 // ─── Pulse Indicator ───────────────────────────────────────────────────────
 
-export function PulseIndicator({ color = 'bg-emerald-500' }: { color?: string }) {
+export function PulseIndicator({ color = 'bg-fuchsia-500' }: { color?: string }) {
   return (
     <span className="relative flex h-2.5 w-2.5">
       <span

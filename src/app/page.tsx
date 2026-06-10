@@ -184,7 +184,7 @@ export default function SalonFlowOS() {
           {/* Logo Area */}
           <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border/50">
             <motion.div
-              className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 shadow-lg shadow-teal-500/20"
+              className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 shadow-lg shadow-rose-500/20"
               whileHover={{ scale: 1.05, rotate: 5 }}
               whileTap={{ scale: 0.95 }}
             >
@@ -223,7 +223,7 @@ export default function SalonFlowOS() {
           <div className="border-t border-sidebar-border/50 p-4">
             <div className="flex items-center gap-3 px-2">
               <motion.div
-                className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-xs font-bold shadow-md"
+                className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold shadow-md"
                 whileHover={{ scale: 1.1 }}
               >
                 SF
@@ -262,7 +262,7 @@ export default function SalonFlowOS() {
             {/* Mobile Header */}
             <div className="flex items-center justify-between px-5 py-5 border-b border-sidebar-border/50">
               <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600">
                   <ScissorsIcon className="size-4 text-white" />
                 </div>
                 <h1 className="text-sm font-bold">SalonFlow OS</h1>
@@ -310,7 +310,7 @@ export default function SalonFlowOS() {
             {/* Mobile User Profile */}
             <div className="border-t border-sidebar-border/50 p-4">
               <div className="flex items-center gap-3 px-2">
-                <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-xs font-bold">
+                <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold">
                   SF
                 </div>
                 <div className="flex-1 min-w-0">

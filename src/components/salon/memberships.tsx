@@ -109,7 +109,7 @@ interface ActiveMembership {
 const tierColors: Record<string, { bg: string; text: string; border: string; card: string; badge: string }> = {
   Silver: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', card: 'bg-gray-50', badge: 'bg-gray-100 text-gray-700 border-gray-300' },
   Gold: { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300', card: 'bg-amber-50', badge: 'bg-amber-100 text-amber-700 border-amber-300' },
-  Platinum: { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-300', card: 'bg-cyan-50', badge: 'bg-cyan-100 text-cyan-700 border-cyan-300' },
+  Platinum: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300', card: 'bg-pink-50', badge: 'bg-pink-100 text-pink-700 border-pink-300' },
   VIP: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300', card: 'bg-purple-50', badge: 'bg-purple-100 text-purple-700 border-purple-300' },
 }
 
@@ -533,7 +533,7 @@ export function MembershipsModule() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Membership Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-cyan-500" />
+            <DollarSign className="h-4 w-4 text-pink-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(membershipRevenue)}</div>
@@ -616,7 +616,7 @@ export function MembershipsModule() {
                         )}
                         {plan.priorityBooking && (
                           <div className="flex items-center gap-2 text-sm">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-cyan-500" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-pink-500" />
                             <span>Priority booking</span>
                           </div>
                         )}

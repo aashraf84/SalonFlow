@@ -109,10 +109,10 @@ const tierCardStyles: Record<string, { gradient: string; icon: React.ReactNode; 
     text: 'text-amber-700',
   },
   platinum: {
-    gradient: 'from-cyan-50 to-cyan-100',
-    icon: <Star className="h-6 w-6 text-cyan-500" />,
-    accent: 'bg-cyan-200 text-cyan-700',
-    text: 'text-cyan-700',
+    gradient: 'from-pink-50 to-pink-100',
+    icon: <Star className="h-6 w-6 text-pink-500" />,
+    accent: 'bg-pink-200 text-pink-700',
+    text: 'text-pink-700',
   },
   vip: {
     gradient: 'from-purple-50 to-purple-100',

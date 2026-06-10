@@ -708,8 +708,8 @@ export default function SettingsModule() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950">
-                    <CalendarDays className="h-4 w-4 text-teal-500" />
+                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950">
+                    <CalendarDays className="h-4 w-4 text-rose-500" />
                   </div>
                   <div className="space-y-0.5">
                     <Label>Daily Summary Email</Label>

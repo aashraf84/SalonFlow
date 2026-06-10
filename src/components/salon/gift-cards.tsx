@@ -324,8 +324,8 @@ export function GiftCardModule() {
           animate={{ opacity: 1, x: 0 }}
           className="flex items-center gap-3"
         >
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-teal-500/10">
-            <Gift className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-500/10">
+            <Gift className="w-5 h-5 text-rose-600 dark:text-rose-400" />
           </div>
           <div>
             <h2 className="text-lg font-bold">Gift Cards</h2>
@@ -349,8 +349,8 @@ export function GiftCardModule() {
             value={stats.totalActive.toString()}
             subtitle="Active gift cards"
             icon={CreditCard}
-            accentGradient="from-teal-500/30 to-cyan-500/30"
-            iconBg="bg-teal-500/10 text-teal-600 dark:text-teal-400"
+            accentGradient="from-rose-500/30 to-pink-500/30"
+            iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400"
           />
         </StaggerItem>
         <StaggerItem>
@@ -369,8 +369,8 @@ export function GiftCardModule() {
             value={stats.redeemedThisMonth.toString()}
             subtitle="Cards fully redeemed"
             icon={CheckCircle2}
-            accentGradient="from-cyan-500/30 to-teal-500/30"
-            iconBg="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            accentGradient="from-pink-500/30 to-rose-500/30"
+            iconBg="bg-pink-500/10 text-pink-600 dark:text-pink-400"
           />
         </StaggerItem>
         <StaggerItem>
@@ -483,7 +483,7 @@ export function GiftCardModule() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 rounded-lg hover:bg-teal-500/10"
+                            className="h-7 w-7 p-0 rounded-lg hover:bg-rose-500/10"
                             onClick={(e) => {
                               e.stopPropagation()
                               setSelectedCard(gc)
@@ -683,10 +683,10 @@ export function GiftCardModule() {
                         <div className="flex items-center gap-2">
                           <div className={cn(
                             'flex items-center justify-center w-7 h-7 rounded-lg',
-                            tx.type === 'purchase' ? 'bg-teal-500/10' :
+                            tx.type === 'purchase' ? 'bg-rose-500/10' :
                             tx.type === 'redemption' ? 'bg-amber-500/10' : 'bg-gray-500/10'
                           )}>
-                            {tx.type === 'purchase' ? <CreditCard className="w-3.5 h-3.5 text-teal-500" /> :
+                            {tx.type === 'purchase' ? <CreditCard className="w-3.5 h-3.5 text-rose-500" /> :
                              tx.type === 'redemption' ? <DollarSign className="w-3.5 h-3.5 text-amber-500" /> :
                              <XCircle className="w-3.5 h-3.5 text-gray-500" />}
                           </div>
