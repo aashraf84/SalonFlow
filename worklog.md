@@ -1,49 +1,53 @@
 ---
 Task ID: 1
-Agent: Main Architect
-Task: Plan database schema and project architecture for SalonFlow OS
+Agent: Main Agent
+Task: macOS Tahoe UI redesign with animated cards, dark/light mode
 
 Work Log:
-- Analyzed requirements for enterprise salon, spa & beauty business operating system
-- Designed comprehensive Prisma schema with 20+ models covering all business domains
-- Planned API route structure for 12+ endpoints
-- Planned frontend architecture with 16 modules using dynamic imports
+- Created ThemeProvider component wrapping next-themes with system/dark/light support
+- Created animated ThemeToggle component with Framer Motion spring transitions (sun/moon icons)
+- Wired ThemeProvider into root layout.tsx with attribute="class" and enableSystem
+- Completely redesigned globals.css with macOS Tahoe color system:
+  - Light theme: translucent white cards (oklch 72%), Tahoe teal accent, subtle gradients
+  - Dark theme: deep space gray, bright teal accent, translucent dark cards (60% opacity)
+  - Custom CSS variables: --glass, --glass-border, --glass-hover, --vibrancy, --tahoe-accent, --tahoe-accent-soft
+  - Glass effect utilities: .glass-effect, .glass-effect-heavy, .sidebar-vibrancy, .header-vibrancy
+  - Card glow hover effect with radial gradient following mouse
+  - Tahoe background with subtle radial gradient atmosphere
+  - macOS-style thin scrollbars
+  - Shimmer loading animation
+- Created GlassCard animated component library (glass-card.tsx):
+  - GlassCard: 3D tilt on hover (perspective 1000px), mouse-follow glow, spring entrance animation
+  - AnimatedMetricCard: staggered entrance, accent gradient bar, icon scale/rotate on hover
+  - AnimatedInsightCard: elevated glass variant, metric badge spring animation
+  - StaggerContainer/StaggerItem: orchestrate child animations with stagger delay
+  - AnimatedCounter, PulseIndicator utilities
+- Redesigned page.tsx with macOS Tahoe UI:
+  - Frosted glass sidebar with vibrancy effect
+  - Animated SidebarNavItem with layoutId-based active indicator (teal pill slides between items)
+  - ChevronRight indicator on active item
+  - Tahoe header with glass vibrancy, rounded search input
+  - AnimatePresence page transitions (fade + slide)
+  - Notification bell with ping animation
+  - Version badge in mono font
+  - Mobile: slide-in sidebar with backdrop blur overlay
+- Redesigned dashboard.tsx with animated cards:
+  - All metric cards use AnimatedMetricCard with stagger delays
+  - Charts wrapped in GlassCard with glow effect
+  - Section headers with icon containers (color-coded)
+  - Branch performance bars animate from 0 to width with spring easing
+  - Loyalty tier bars animate from 0 with spring easing
+  - Table rows stagger in with spring animations
+  - Inventory alert items animate individually
+  - AI insight cards use AnimatedInsightCard with spring metric badge
+  - PulseIndicator on Recent Appointments header
+  - Error state with spring scale animation
+- Fixed lint errors (setState in effect, ref access during render)
+- Verified with Agent Browser: light mode renders, dark mode toggle works, navigation works, mobile responsive, no console errors
 
 Stage Summary:
-- Database schema designed with models: Branch, Staff, Attendance, Shift, Customer, CustomerDocument, ServiceCategory, Service, ServiceAddon, Room, Appointment, AppointmentService, MembershipPlan, Membership, LoyaltyTransaction, ProductCategory, Product, InventoryItem, Invoice, InvoiceItem, Expense, Commission, MarketingCampaign, AuditLog, Waitlist
-- Frontend architecture: Single-page app with Zustand state management, 16 modules loaded via dynamic imports
-- API routes: 12 REST endpoints for all business data
-
----
-Task ID: 2
-Agent: Main Architect
-Task: Set up Prisma database schema and seed data
-
-Work Log:
-- Created Prisma schema with SQLite provider
-- Pushed schema to database successfully
-- Created comprehensive seed script with realistic Pakistani salon data
-- Seeded database with 3 branches, 10 staff, 15 customers, 8 service categories, 35 services, 4 membership plans, 16 products, inventory items, 700+ appointments, invoices, expenses, commissions, marketing campaigns
-
-Stage Summary:
-- Database fully seeded with realistic data
-- All foreign key relationships working correctly
-
----
-Task ID: 3
-Agent: Multiple Subagents
-Task: Build complete SalonFlow OS application
-
-Work Log:
-- Built dashboard API route with 12 real-time metrics
-- Built 11 API routes (appointments, customers, services, staff, memberships, invoices, inventory, finance, marketing, branches, loyalty, AI)
-- Built 16 frontend modules with full functionality
-- Integrated Z.ai LLM SDK for AI Assistant
-- Built main page with sidebar navigation, header, footer
-
-Stage Summary:
-- All modules production-ready with real data from database
-- AI Assistant uses z-ai-web-dev-sdk with fallback to template-based responses
-- Application verified in browser - all modules loading correctly
-- No browser errors, no lint errors
-- Dashboard shows: 12 today's appointments, PKR 24,690 monthly revenue, 25 active customers, 10 staff
+- Complete macOS Tahoe UI redesign with glassmorphism, vibrancy, and animated cards
+- Dark/light mode fully functional with smooth theme toggle
+- All Framer Motion animations working: 3D card tilt, stagger entrances, layout animations, page transitions
+- Lint passes cleanly
+- Browser-verified: both themes, navigation, mobile responsive

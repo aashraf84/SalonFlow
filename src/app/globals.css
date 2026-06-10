@@ -41,76 +41,149 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* macOS Tahoe glass colors */
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+  --color-glass-hover: var(--glass-hover);
+  --color-vibrancy: var(--vibrancy);
+  --color-tahoe-accent: var(--tahoe-accent);
+  --color-tahoe-accent-soft: var(--tahoe-accent-soft);
 }
+
+/* ─── macOS Tahoe Light Theme ─────────────────────────────────────────────── */
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.75rem;
+
+  /* Core surfaces */
+  --background: oklch(0.97 0.005 280);
+  --foreground: oklch(0.15 0.01 280);
+
+  /* Card / Panel - translucent white */
+  --card: oklch(1 0 0 / 72%);
+  --card-foreground: oklch(0.15 0.01 280);
+
+  /* Popover */
+  --popover: oklch(1 0 0 / 85%);
+  --popover-foreground: oklch(0.15 0.01 280);
+
+  /* Primary - Tahoe deep teal */
+  --primary: oklch(0.45 0.12 200);
+  --primary-foreground: oklch(0.98 0.005 200);
+
+  /* Secondary */
+  --secondary: oklch(0.94 0.008 280);
+  --secondary-foreground: oklch(0.25 0.01 280);
+
+  /* Muted */
+  --muted: oklch(0.94 0.006 280);
+  --muted-foreground: oklch(0.55 0.01 280);
+
+  /* Accent - Tahoe rose */
+  --accent: oklch(0.93 0.02 340);
+  --accent-foreground: oklch(0.30 0.08 340);
+
+  /* Destructive */
+  --destructive: oklch(0.55 0.22 25);
+
+  /* Borders & Input */
+  --border: oklch(0.88 0.008 280);
+  --input: oklch(0.90 0.008 280);
+  --ring: oklch(0.45 0.12 200);
+
+  /* Chart colors - Tahoe palette */
+  --chart-1: oklch(0.55 0.15 200);
+  --chart-2: oklch(0.60 0.18 160);
+  --chart-3: oklch(0.55 0.20 340);
+  --chart-4: oklch(0.65 0.15 60);
+  --chart-5: oklch(0.60 0.18 280);
+
+  /* Sidebar - Tahoe translucent */
+  --sidebar: oklch(0.98 0.005 280 / 65%);
+  --sidebar-foreground: oklch(0.15 0.01 280);
+  --sidebar-primary: oklch(0.45 0.12 200);
+  --sidebar-primary-foreground: oklch(0.98 0.005 200);
+  --sidebar-accent: oklch(0.93 0.01 280);
+  --sidebar-accent-foreground: oklch(0.25 0.01 280);
+  --sidebar-border: oklch(0.88 0.008 280 / 60%);
+  --sidebar-ring: oklch(0.45 0.12 200);
+
+  /* macOS Tahoe glass tokens */
+  --glass: oklch(1 0 0 / 55%);
+  --glass-border: oklch(1 0 0 / 35%);
+  --glass-hover: oklch(1 0 0 / 70%);
+  --vibrancy: oklch(0.97 0.005 280 / 60%);
+  --tahoe-accent: oklch(0.45 0.12 200);
+  --tahoe-accent-soft: oklch(0.55 0.15 200 / 15%);
 }
 
+/* ─── macOS Tahoe Dark Theme ──────────────────────────────────────────────── */
+
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Core surfaces - deep space gray */
+  --background: oklch(0.13 0.005 280);
+  --foreground: oklch(0.93 0.005 280);
+
+  /* Card / Panel - translucent dark */
+  --card: oklch(0.18 0.008 280 / 60%);
+  --card-foreground: oklch(0.93 0.005 280);
+
+  /* Popover */
+  --popover: oklch(0.20 0.008 280 / 80%);
+  --popover-foreground: oklch(0.93 0.005 280);
+
+  /* Primary - Tahoe bright teal */
+  --primary: oklch(0.65 0.15 200);
+  --primary-foreground: oklch(0.12 0.01 280);
+
+  /* Secondary */
+  --secondary: oklch(0.22 0.008 280);
+  --secondary-foreground: oklch(0.90 0.005 280);
+
+  /* Muted */
+  --muted: oklch(0.22 0.008 280);
+  --muted-foreground: oklch(0.65 0.01 280);
+
+  /* Accent - Tahoe soft rose */
+  --accent: oklch(0.25 0.03 340);
+  --accent-foreground: oklch(0.85 0.08 340);
+
+  /* Destructive */
+  --destructive: oklch(0.65 0.20 25);
+
+  /* Borders & Input */
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.65 0.15 200);
+
+  /* Chart colors - Tahoe dark palette */
+  --chart-1: oklch(0.65 0.18 200);
+  --chart-2: oklch(0.70 0.20 160);
+  --chart-3: oklch(0.65 0.22 340);
+  --chart-4: oklch(0.75 0.17 60);
+  --chart-5: oklch(0.70 0.20 280);
+
+  /* Sidebar - Tahoe dark translucent */
+  --sidebar: oklch(0.15 0.006 280 / 65%);
+  --sidebar-foreground: oklch(0.93 0.005 280);
+  --sidebar-primary: oklch(0.65 0.15 200);
+  --sidebar-primary-foreground: oklch(0.12 0.01 280);
+  --sidebar-accent: oklch(0.22 0.01 280);
+  --sidebar-accent-foreground: oklch(0.90 0.005 280);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.65 0.15 200);
+
+  /* macOS Tahoe dark glass tokens */
+  --glass: oklch(0.20 0.008 280 / 45%);
+  --glass-border: oklch(1 0 0 / 10%);
+  --glass-hover: oklch(0.25 0.01 280 / 60%);
+  --vibrancy: oklch(0.15 0.006 280 / 50%);
+  --tahoe-accent: oklch(0.65 0.15 200);
+  --tahoe-accent-soft: oklch(0.55 0.15 200 / 15%);
 }
+
+/* ─── Base Layer ──────────────────────────────────────────────────────────── */
 
 @layer base {
   * {
@@ -119,4 +192,140 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ─── macOS Tahoe Animations & Effects ───────────────────────────────────── */
+
+/* Smooth theme transition */
+html {
+  transition: color-scheme 0.3s ease;
+}
+
+/* Scrollbar styling - macOS thin scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.5 0 0 / 25%);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.5 0 0 / 40%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(0.7 0 0 / 20%);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.7 0 0 / 35%);
+}
+
+/* macOS Tahoe frosted glass utility */
+.glass-effect {
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-effect-heavy {
+  background: var(--vibrancy);
+  backdrop-filter: blur(60px) saturate(200%);
+  -webkit-backdrop-filter: blur(60px) saturate(200%);
+  border: 1px solid var(--glass-border);
+}
+
+/* macOS Tahoe sidebar vibrancy */
+.sidebar-vibrancy {
+  background: var(--sidebar);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+}
+
+/* macOS Tahoe header vibrancy */
+.header-vibrancy {
+  background: var(--glass);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* macOS Tahoe card hover glow */
+.card-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    var(--tahoe-accent-soft),
+    transparent 40%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.card-glow:hover::before {
+  opacity: 1;
+}
+
+/* macOS dock-like bounce animation */
+@keyframes dock-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-8px); }
+  60% { transform: translateY(-4px); }
+}
+
+.dock-bounce {
+  animation: dock-bounce 0.6s ease-in-out;
+}
+
+/* macOS Tahoe shimmer effect for loading */
+@keyframes tahoe-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.tahoe-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--glass-hover) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: tahoe-shimmer 2s ease-in-out infinite;
+}
+
+/* Smooth page background gradient */
+.tahoe-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--tahoe-accent-soft), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 0%, oklch(0.65 0.12 340 / 5%), transparent),
+    var(--background);
+}
+
+.dark .tahoe-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.30 0.08 200 / 20%), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 0%, oklch(0.30 0.06 340 / 10%), transparent),
+    var(--background);
 }
