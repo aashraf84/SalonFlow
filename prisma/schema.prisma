@@ -1,0 +1,504 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// SALONFLOW OS - Enterprise Salon & Spa DB
+// ============================================
+
+// Multi-Branch / Workspace
+model Branch {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  branchCode  String   @unique
+  timezone    String   @default("Asia/Karachi")
+  openTime    String   @default("09:00")
+  closeTime   String   @default("21:00")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staff       Staff[]
+  appointments Appointment[]
+  rooms       Room[]
+  inventoryItems InventoryItem[]
+  invoices    Invoice[]
+  expenses    Expense[]
+  shifts      Shift[]
+  marketingCampaigns MarketingCampaign[]
+}
+
+// Staff / Employees
+model Staff {
+  id            String   @id @default(cuid())
+  branchId      String
+  firstName     String
+  lastName      String
+  email         String   @unique
+  phone         String?
+  role          String   @default("stylist") // owner, manager, receptionist, stylist, beautician, therapist
+  specialization String?
+  hireDate      DateTime @default(now())
+  status        String   @default("active") // active, inactive, on_leave
+  commissionRate Float   @default(0.10)
+  avatar        String?
+  bio           String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  appointments  Appointment[]
+  shifts        Shift[]
+  commissions   Commission[]
+  attendanceRecords Attendance[]
+
+  @@index([branchId])
+}
+
+// Attendance
+model Attendance {
+  id        String   @id @default(cuid())
+  staffId   String
+  branchId  String
+  date      DateTime
+  clockIn   DateTime?
+  clockOut  DateTime?
+  status    String   @default("present") // present, absent, late, half_day
+  notes     String?
+  createdAt DateTime @default(now())
+
+  staff     Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, date])
+}
+
+// Shifts
+model Shift {
+  id        String   @id @default(cuid())
+  staffId   String
+  branchId  String
+  date      DateTime
+  startTime String
+  endTime   String
+  status    String   @default("scheduled") // scheduled, completed, cancelled
+  createdAt DateTime @default(now())
+
+  staff     Staff    @relation(fields: [staffId], references: [id])
+  branch    Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([staffId, date])
+}
+
+// Customers
+model Customer {
+  id            String   @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String?
+  phone         String
+  gender        String?
+  dateOfBirth   DateTime?
+  address       String?
+  city          String?
+  notes         String?
+  skinType      String?
+  hairType      String?
+  preferences   String?
+  loyaltyTier   String   @default("silver") // silver, gold, platinum, vip
+  loyaltyPoints Int      @default(0)
+  totalVisits   Int      @default(0)
+  lifetimeValue Float    @default(0)
+  referredBy    String?
+  status        String   @default("active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  appointments  Appointment[]
+  invoices      Invoice[]
+  memberships   Membership[]
+  loyaltyTransactions LoyaltyTransaction[]
+  customerDocuments CustomerDocument[]
+
+  @@index([phone])
+  @@index([email])
+}
+
+// Customer Documents / Photos
+model CustomerDocument {
+  id          String   @id @default(cuid())
+  customerId  String
+  type        String   // before_photo, after_photo, prescription, notes, other
+  title       String
+  fileUrl     String
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+}
+
+// Service Categories
+model ServiceCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  icon        String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  services    Service[]
+
+  @@index([sortOrder])
+}
+
+// Services
+model Service {
+  id            String   @id @default(cuid())
+  categoryId    String
+  name          String
+  description   String?
+  duration      Int      // minutes
+  price         Float
+  isActive      Boolean  @default(true)
+  isPackage     Boolean  @default(false)
+  requirements  String?
+  afterCare     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category      ServiceCategory @relation(fields: [categoryId], references: [id])
+  appointments  AppointmentService[]
+  serviceAddons ServiceAddon[]
+
+  @@index([categoryId])
+}
+
+// Service Add-ons
+model ServiceAddon {
+  id          String   @id @default(cuid())
+  serviceId   String
+  name        String
+  price       Float
+  duration    Int      // minutes
+  isActive    Boolean  @default(true)
+
+  service     Service  @relation(fields: [serviceId], references: [id])
+
+  @@index([serviceId])
+}
+
+// Rooms
+model Room {
+  id            String   @id @default(cuid())
+  branchId      String
+  name          String
+  roomType      String   @default("treatment") // treatment, consultation, waiting, spa
+  capacity      Int      @default(1)
+  status        String   @default("available") // available, occupied, cleaning, maintenance
+  equipment     String?
+  createdAt     DateTime @default(now())
+
+  branch        Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([branchId])
+}
+
+// Appointments
+model Appointment {
+  id            String   @id @default(cuid())
+  branchId      String
+  customerId    String
+  staffId       String
+  date          DateTime
+  startTime     String
+  endTime       String
+  status        String   @default("scheduled") // scheduled, confirmed, in_progress, completed, cancelled, no_show
+  type          String   @default("booking") // booking, walk_in
+  notes         String?
+  totalAmount   Float    @default(0)
+  isRecurring   Boolean  @default(false)
+  recurringId   String?
+  reminderSent  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  customer      Customer @relation(fields: [customerId], references: [id])
+  staff         Staff    @relation(fields: [staffId], references: [id])
+  services      AppointmentService[]
+
+  @@index([branchId, date])
+  @@index([customerId])
+  @@index([staffId, date])
+}
+
+// Appointment-Services junction
+model AppointmentService {
+  id            String   @id @default(cuid())
+  appointmentId String
+  serviceId     String
+  staffId       String?
+  price         Float
+  duration      Int
+  status        String   @default("pending") // pending, in_progress, completed
+
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  service       Service    @relation(fields: [serviceId], references: [id])
+
+  @@index([appointmentId])
+  @@index([serviceId])
+}
+
+// Membership Plans
+model MembershipPlan {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  price         Float
+  duration      Int      // months
+  discount      Float    @default(0) // percentage
+  freeServices  Int      @default(0)
+  priorityBooking Boolean @default(false)
+  loyaltyBonus  Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  memberships   Membership[]
+
+  @@index([isActive])
+}
+
+// Memberships (customer subscriptions)
+model Membership {
+  id            String   @id @default(cuid())
+  customerId    String
+  planId        String
+  startDate     DateTime
+  endDate       DateTime
+  status        String   @default("active") // active, expired, cancelled, paused
+  autoRenew     Boolean  @default(true)
+  paymentMethod String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  plan          MembershipPlan @relation(fields: [planId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+}
+
+// Loyalty Transactions
+model LoyaltyTransaction {
+  id          String   @id @default(cuid())
+  customerId  String
+  type        String   // earn, redeem, bonus, referral, birthday
+  points      Int
+  description String?
+  referenceId String?
+  createdAt   DateTime @default(now())
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+}
+
+// Product Categories
+model ProductCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  products    Product[]
+
+  @@index([name])
+}
+
+// Products
+model Product {
+  id            String   @id @default(cuid())
+  categoryId    String
+  name          String
+  description   String?
+  sku           String   @unique
+  brand         String?
+  costPrice     Float
+  sellingPrice  Float
+  unit          String   @default("piece")
+  reorderLevel  Int      @default(10)
+  isActive      Boolean  @default(true)
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category      ProductCategory @relation(fields: [categoryId], references: [id])
+  inventoryItems InventoryItem[]
+
+
+  @@index([categoryId])
+  @@index([sku])
+}
+
+// Inventory Items (per branch)
+model InventoryItem {
+  id            String   @id @default(cuid())
+  productId     String
+  branchId      String
+  quantity      Int      @default(0)
+  batchNumber   String?
+  expiryDate    DateTime?
+  lastRestocked DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product       Product  @relation(fields: [productId], references: [id])
+  branch        Branch   @relation(fields: [branchId], references: [id])
+
+  @@unique([productId, branchId])
+  @@index([branchId])
+  @@index([productId])
+}
+
+// Invoices
+model Invoice {
+  id              String   @id @default(cuid())
+  branchId        String
+  customerId      String?
+  invoiceNumber   String   @unique
+  type            String   @default("service") // service, product, combo
+  subtotal        Float
+  tax             Float    @default(0)
+  discount        Float    @default(0)
+  totalAmount     Float
+  paymentMethod   String   @default("cash") // cash, card, wallet, split
+  paymentStatus   String   @default("paid") // paid, pending, partial, refunded
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  branch          Branch   @relation(fields: [branchId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  items           InvoiceItem[]
+
+  @@index([branchId, createdAt])
+  @@index([customerId])
+}
+
+// Invoice Items
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  itemType    String   // service, product, membership, package
+  itemId      String?
+  name        String
+  quantity    Int      @default(1)
+  unitPrice   Float
+  discount    Float    @default(0)
+  total       Float
+  staffId     String?
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+// Expenses
+model Expense {
+  id          String   @id @default(cuid())
+  branchId    String
+  category    String   // rent, utilities, supplies, payroll, maintenance, marketing, other
+  amount      Float
+  description String?
+  date        DateTime
+  paidBy      String?
+  receipt     String?
+  createdAt   DateTime @default(now())
+
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([branchId, date])
+  @@index([category])
+}
+
+// Commissions
+model Commission {
+  id          String   @id @default(cuid())
+  staffId     String
+  appointmentId String?
+  amount      Float
+  type        String   // service, product, referral
+  status      String   @default("pending") // pending, paid
+  period      String   // "2024-01"
+  createdAt   DateTime @default(now())
+
+  staff       Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@index([period])
+}
+
+// Marketing Campaigns
+model MarketingCampaign {
+  id          String   @id @default(cuid())
+  branchId    String
+  name        String
+  type        String   // sms, email, whatsapp, social
+  channel     String   // sms, email, whatsapp, push
+  subject     String?
+  content     String
+  targetAudience String? // all, members, new_customers, inactive, birthday_month
+  status      String   @default("draft") // draft, scheduled, sent, completed
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  recipientCount Int   @default(0)
+  openRate    Float    @default(0)
+  clickRate   Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([branchId])
+  @@index([status])
+}
+
+// Audit Log
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entity      String
+  entityId    String?
+  details     String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// Waitlist
+model Waitlist {
+  id          String   @id @default(cuid())
+  branchId    String
+  customerId  String
+  serviceId   String?
+  preferredDate DateTime
+  preferredTime String?
+  status      String   @default("waiting") // waiting, notified, booked, cancelled
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([branchId, status])
+}
