@@ -356,12 +356,31 @@ export async function GET() {
 
     // ── 6. revenueByService ─────────────────────────────────────────────────
 
+    // Aggregate revenue by service category from AppointmentService + Service price
+    // (InvoiceItem.itemId is null for seeded data, so we compute from appointments instead)
     const catRevenue = new Map<string, number>()
+
+    // First try InvoiceItem approach (works if itemId is populated)
     for (const item of serviceInvItems) {
       if (!item.itemId) continue
       const svc = serviceMap.get(item.itemId)
       const catName = svc?.category?.name ?? 'Unknown'
       catRevenue.set(catName, (catRevenue.get(catName) ?? 0) + item.total)
+    }
+
+    // Fallback: if InvoiceItem approach yields nothing, use AppointmentService counts × service price
+    if (catRevenue.size === 0) {
+      const allApptSvcs = await db.appointmentService.groupBy({
+        by: ['serviceId'],
+        _count: { serviceId: true },
+      })
+      for (const g of allApptSvcs) {
+        const svc = serviceMap.get(g.serviceId)
+        if (!svc) continue
+        const catName = svc.category?.name ?? 'Unknown'
+        const rev = svc.price * g._count.serviceId
+        catRevenue.set(catName, (catRevenue.get(catName) ?? 0) + rev)
+      }
     }
 
     const revenueByService = [...catRevenue.entries()]

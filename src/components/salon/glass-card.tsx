@@ -150,7 +150,7 @@ export function AnimatedMetricCard({
             {title}
           </p>
           <motion.p
-            className="text-2xl font-bold mt-1.5 tracking-tight truncate"
+            className="text-lg font-bold mt-1.5 tracking-tight"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: delay + 0.15, type: 'spring', stiffness: 200 }}

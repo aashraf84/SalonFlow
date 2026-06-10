@@ -167,18 +167,20 @@ function formatNumber(num: number): string {
   return num.toLocaleString()
 }
 
-function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+function getStatusBadgeStyle(status: string): string {
   switch (status) {
     case 'completed':
-      return 'default'
+      return 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
     case 'confirmed':
+      return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
     case 'in_progress':
-      return 'secondary'
+      return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'
     case 'cancelled':
+      return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
     case 'no_show':
-      return 'destructive'
-    default:
-      return 'outline'
+      return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800'
+    default: // scheduled
+      return 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-800'
   }
 }
 
@@ -225,18 +227,18 @@ const tierBarColors: Record<string, string> = {
 const appointmentTrendConfig: ChartConfig = {
   count: {
     label: 'Appointments',
-    color: 'hsl(175, 55%, 42%)',
+    color: 'hsl(350, 65%, 52%)',
   },
   revenue: {
     label: 'Revenue (PKR)',
-    color: 'hsl(190, 50%, 50%)',
+    color: 'hsl(330, 55%, 55%)',
   },
 }
 
 const revenueByServiceConfig: ChartConfig = {
   revenue: {
     label: 'Revenue (PKR)',
-    color: 'hsl(175, 55%, 42%)',
+    color: 'hsl(350, 65%, 52%)',
   },
 }
 
@@ -561,7 +563,7 @@ export function DashboardModule() {
                         <p className="text-sm font-semibold">{formatCurrency(appt.totalAmount)}</p>
                       </TableCell>
                       <TableCell className="pr-6 py-3">
-                        <Badge variant={getStatusBadgeVariant(appt.status)} className="text-[10px] rounded-lg">
+                        <Badge variant="outline" className={cn('text-[10px] rounded-lg', getStatusBadgeStyle(appt.status))}>
                           {getStatusLabel(appt.status)}
                         </Badge>
                       </TableCell>
