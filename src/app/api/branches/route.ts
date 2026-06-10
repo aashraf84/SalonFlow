@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 // GET /api/branches - List all branches with staff count and room count
@@ -40,6 +40,48 @@ export async function GET() {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to fetch branches'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
+}
+
+// POST /api/branches - Create branch
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { name, address, phone, email, branchCode, timezone, openTime, closeTime } = body
+
+    if (!name || !branchCode) {
+      return NextResponse.json(
+        { success: false, error: 'name and branchCode are required' },
+        { status: 400 }
+      )
+    }
+
+    // Check unique branchCode
+    const existing = await db.branch.findUnique({ where: { branchCode } })
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: 'branchCode already exists' },
+        { status: 409 }
+      )
+    }
+
+    const branch = await db.branch.create({
+      data: {
+        name,
+        address: address || null,
+        phone: phone || null,
+        email: email || null,
+        branchCode,
+        timezone: timezone || 'Asia/Karachi',
+        openTime: openTime || '09:00',
+        closeTime: closeTime || '21:00',
+      },
+    })
+
+    return NextResponse.json({ success: true, data: branch }, { status: 201 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create branch'
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }

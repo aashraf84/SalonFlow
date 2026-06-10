@@ -13,7 +13,11 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
+  Search,
+  Loader2,
+  Ban,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Card,
   CardContent,
@@ -47,6 +51,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 const formatCurrency = (amount: number) => `PKR ${amount.toLocaleString()}`
@@ -122,8 +133,13 @@ export function MembershipsModule() {
   const [members, setMembers] = useState<ActiveMembership[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('plans')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false)
+  const [subscribeForm, setSubscribeForm] = useState({ customerId: '', planId: '', startDate: '' })
+  const [subscribeSubmitting, setSubscribeSubmitting] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [customerResults, setCustomerResults] = useState<{id: string; firstName: string; lastName: string; phone: string}[]>([])
+  const [searchingCustomers, setSearchingCustomers] = useState(false)
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
 
   // Form state
   const [formName, setFormName] = useState('')
@@ -179,6 +195,99 @@ export function MembershipsModule() {
     setFormPriorityBooking(false)
   }
 
+  // Customer search for subscribe dialog
+  const searchCustomers = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setCustomerResults([])
+      return
+    }
+    setSearchingCustomers(true)
+    try {
+      const res = await fetch(`/api/customers?search=${encodeURIComponent(query)}&take=10`)
+      const json = await res.json()
+      if (json.success) {
+        setCustomerResults(json.data.map((c: {id: string; firstName: string; lastName: string; phone: string}) => ({
+          id: c.id, firstName: c.firstName, lastName: c.lastName, phone: c.phone,
+        })))
+      }
+    } catch {
+      setCustomerResults([])
+    } finally {
+      setSearchingCustomers(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => searchCustomers(customerSearch), 300)
+    return () => clearTimeout(timeout)
+  }, [customerSearch, searchCustomers])
+
+  const handleSubscribe = async () => {
+    if (!subscribeForm.customerId || !subscribeForm.planId || !subscribeForm.startDate) {
+      toast.error('Please fill all required fields')
+      return
+    }
+    setSubscribeSubmitting(true)
+    try {
+      const plan = plans.find(p => p.id === subscribeForm.planId)
+      const startDate = new Date(subscribeForm.startDate)
+      const endDate = new Date(startDate)
+      endDate.setMonth(endDate.getMonth() + (plan?.duration || 1))
+
+      const res = await fetch('/api/memberships', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${plan?.name || 'Membership'} Subscription`,
+          price: plan?.price || 0,
+          duration: plan?.duration || 1,
+          customerId: subscribeForm.customerId,
+          planId: subscribeForm.planId,
+          startDate: subscribeForm.startDate,
+          endDate: endDate.toISOString(),
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Customer subscribed successfully')
+        setSubscribeDialogOpen(false)
+        setSubscribeForm({ customerId: '', planId: '', startDate: '' })
+        setCustomerSearch('')
+        setCustomerResults([])
+        fetchMembers()
+        fetchPlans()
+      } else {
+        toast.error(json.error || 'Failed to subscribe customer')
+      }
+    } catch {
+      toast.error('Failed to subscribe customer')
+    } finally {
+      setSubscribeSubmitting(false)
+    }
+  }
+
+  const handleCancelMembership = async (membershipId: string) => {
+    setCancellingId(membershipId)
+    try {
+      const res = await fetch(`/api/memberships/${membershipId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled', autoRenew: false }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Membership cancelled')
+        fetchMembers()
+      } else {
+        toast.error(json.error || 'Failed to cancel membership')
+      }
+    } catch {
+      toast.error('Failed to cancel membership')
+    } finally {
+      setCancellingId(null)
+    }
+  }
+
   const handleCreatePlan = async () => {
     if (!formName || !formPrice || !formDuration) return
     setSubmitting(true)
@@ -199,12 +308,16 @@ export function MembershipsModule() {
       })
       const json = await res.json()
       if (json.success) {
+        toast.success('Membership plan created successfully')
         resetForm()
         setDialogOpen(false)
         fetchPlans()
+      } else {
+        toast.error(json.error || 'Failed to create plan')
       }
     } catch (err) {
       console.error('Failed to create plan:', err)
+      toast.error('Failed to create plan')
     } finally {
       setSubmitting(false)
     }
@@ -258,13 +371,18 @@ export function MembershipsModule() {
             <p className="text-sm text-muted-foreground">Plans, subscriptions & member benefits</p>
           </div>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Create Plan
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setSubscribeDialogOpen(true)}>
+            <Users className="h-4 w-4 mr-1.5" />
+            Subscribe Customer
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create Plan
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Create Membership Plan</DialogTitle>
@@ -382,7 +500,8 @@ export function MembershipsModule() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+      </Dialog>
+        </div>
       </div>
 
       {/* Stats Row */}
@@ -569,6 +688,7 @@ export function MembershipsModule() {
                         <TableHead>End Date</TableHead>
                         <TableHead>Auto-Renew</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -626,6 +746,24 @@ export function MembershipsModule() {
                               {membership.status}
                             </Badge>
                           </TableCell>
+                          <TableCell>
+                            {membership.status === 'active' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-red-500 hover:text-red-600 gap-1"
+                                onClick={() => handleCancelMembership(membership.id)}
+                                disabled={cancellingId === membership.id}
+                              >
+                                {cancellingId === membership.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Ban className="h-3 w-3" />
+                                )}
+                                Cancel
+                              </Button>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -646,6 +784,68 @@ export function MembershipsModule() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Subscribe Customer Dialog */}
+      <Dialog open={subscribeDialogOpen} onOpenChange={setSubscribeDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Subscribe Customer</DialogTitle>
+            <DialogDescription>Subscribe a customer to a membership plan</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Search Customer</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or phone..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {searchingCustomers && <p className="text-xs text-muted-foreground">Searching...</p>}
+              {customerResults.length > 0 && !subscribeForm.customerId && (
+                <div className="border rounded-lg max-h-40 overflow-y-auto">
+                  {customerResults.map((c) => (
+                    <button
+                      key={c.id}
+                      className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm border-b last:border-0"
+                      onClick={() => { setSubscribeForm({...subscribeForm, customerId: c.id}); setCustomerSearch(`${c.firstName} ${c.lastName}`); setCustomerResults([]) }}
+                    >
+                      <span className="font-medium">{c.firstName} {c.lastName}</span>
+                      <span className="text-muted-foreground ml-2">{c.phone}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {subscribeForm.customerId && <p className="text-xs text-emerald-600 font-medium">Customer selected</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Select Plan *</Label>
+              <Select value={subscribeForm.planId} onValueChange={(v) => setSubscribeForm({...subscribeForm, planId: v})}>
+                <SelectTrigger><SelectValue placeholder="Choose a plan" /></SelectTrigger>
+                <SelectContent>
+                  {plans.filter(p => p.isActive).map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>{plan.name} - {formatCurrency(plan.price)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Start Date *</Label>
+              <Input type="date" value={subscribeForm.startDate} onChange={(e) => setSubscribeForm({...subscribeForm, startDate: e.target.value})} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubscribeDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSubscribe} disabled={subscribeSubmitting || !subscribeForm.customerId || !subscribeForm.planId || !subscribeForm.startDate}>
+              {subscribeSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Subscribe
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

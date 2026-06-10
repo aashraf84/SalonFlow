@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import {
   Settings as SettingsIcon,
   Building2,
@@ -45,6 +46,8 @@ import { Badge } from '@/components/ui/badge'
 
 export default function SettingsModule() {
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [auditLogs, setAuditLogs] = useState<{id: string; action: string; entity: string; userId: string | null; createdAt: string; details: string | null}[]>([])
 
   // General Settings State
   const [general, setGeneral] = useState({
@@ -92,11 +95,100 @@ export default function SettingsModule() {
     loginNotifications: true,
   })
 
+  // Load settings from API on mount
+  const loadSettings = useCallback(async () => {
+    try {
+      const [settingsRes, auditRes] = await Promise.all([
+        fetch('/api/settings'),
+        fetch('/api/audit-logs?take=20'),
+      ])
+      const settingsJson = await settingsRes.json()
+      const auditJson = await auditRes.json()
+
+      if (settingsJson.success) {
+        const d = settingsJson.data as Record<string, Record<string, string>>
+        if (d.general) {
+          setGeneral(prev => ({
+            ...prev,
+            salonName: d.general.general_salonName || prev.salonName,
+            address: d.general.general_address || prev.address,
+            phone: d.general.general_phone || prev.phone,
+            email: d.general.general_email || prev.email,
+            timezone: d.general.general_timezone || prev.timezone,
+            openTime: d.general.general_openTime || prev.openTime,
+            closeTime: d.general.general_closeTime || prev.closeTime,
+          }))
+        }
+        if (d.business) {
+          setBusiness(prev => ({
+            ...prev,
+            currency: d.business.business_currency || prev.currency,
+            taxRate: d.business.business_taxRate || prev.taxRate,
+            bookingBuffer: d.business.business_bookingBuffer || prev.bookingBuffer,
+            maxAdvanceBooking: d.business.business_maxAdvanceBooking || prev.maxAdvanceBooking,
+            cancellationPolicy: d.business.business_cancellationPolicy || prev.cancellationPolicy,
+            minBookingNotice: d.business.business_minBookingNotice || prev.minBookingNotice,
+            allowOnlineBooking: d.business.business_allowOnlineBooking === 'true',
+            requireDeposit: d.business.business_requireDeposit === 'true',
+            depositPercentage: d.business.business_depositPercentage || prev.depositPercentage,
+          }))
+        }
+        if (d.notifications) {
+          setNotifications(prev => ({
+            ...prev,
+            appointmentReminders: d.notifications.notifications_appointmentReminders === 'true' || prev.appointmentReminders,
+            reminderHoursBefore: d.notifications.notifications_reminderHoursBefore || prev.reminderHoursBefore,
+            marketingEmails: d.notifications.notifications_marketingEmails === 'true',
+            smsNotifications: d.notifications.notifications_smsNotifications === 'true' || prev.smsNotifications,
+            loyaltyAlerts: d.notifications.notifications_loyaltyAlerts === 'true' || prev.loyaltyAlerts,
+            staffShiftReminders: d.notifications.notifications_staffShiftReminders === 'true' || prev.staffShiftReminders,
+            lowStockAlerts: d.notifications.notifications_lowStockAlerts === 'true' || prev.lowStockAlerts,
+            dailySummary: d.notifications.notifications_dailySummary === 'true',
+          }))
+        }
+        if (d.security) {
+          setSecurity(prev => ({
+            ...prev,
+            twoFactorAuth: d.security.security_twoFactorAuth === 'true',
+            sessionTimeout: d.security.security_sessionTimeout || prev.sessionTimeout,
+            loginNotifications: d.security.security_loginNotifications === 'true' || prev.loginNotifications,
+          }))
+        }
+      }
+
+      if (auditJson.success) {
+        setAuditLogs(auditJson.data)
+      }
+    } catch {
+      // Use defaults
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
+
   const handleSave = async () => {
     setSaving(true)
-    // Simulate save
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setSaving(false)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ general: general, business: business, notifications: notifications, security: security }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Settings saved successfully')
+      } else {
+        toast.error(json.error || 'Failed to save settings')
+      }
+    } catch {
+      toast.error('Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -844,28 +936,30 @@ export default function SettingsModule() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3 max-h-64 overflow-y-auto">
-                {[
-                  { action: 'Login', user: 'admin@salonflow.pk', time: '5 min ago', type: 'auth' },
-                  { action: 'Settings Updated', user: 'admin@salonflow.pk', time: '1 hour ago', type: 'settings' },
-                  { action: 'Staff Created', user: 'manager@salonflow.pk', time: '3 hours ago', type: 'staff' },
-                  { action: 'Invoice Generated', user: 'reception@salonflow.pk', time: '5 hours ago', type: 'invoice' },
-                  { action: 'Password Changed', user: 'admin@salonflow.pk', time: '1 day ago', type: 'auth' },
-                  { action: 'Customer Data Exported', user: 'admin@salonflow.pk', time: '2 days ago', type: 'export' },
-                ].map((log, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between py-2 border-b last:border-0"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                      <div>
-                        <p className="text-sm">{log.action}</p>
-                        <p className="text-xs text-muted-foreground">{log.user}</p>
+                {auditLogs.length > 0 ? auditLogs.map((log) => {
+                  const diffMs = Date.now() - new Date(log.createdAt).getTime()
+                  const diffMins = Math.floor(diffMs / 60000)
+                  const timeStr = diffMins < 1 ? 'Just now' : diffMins < 60 ? `${diffMins}m ago` : diffMins < 1440 ? `${Math.floor(diffMins / 60)}h ago` : `${Math.floor(diffMins / 1440)}d ago`
+                  return (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between py-2 border-b last:border-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                        <div>
+                          <p className="text-sm">{log.action}</p>
+                          <p className="text-xs text-muted-foreground">{log.userId || 'System'} · {log.entity}</p>
+                        </div>
                       </div>
+                      <span className="text-xs text-muted-foreground">{timeStr}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground">{log.time}</span>
+                  )
+                }) : (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No audit logs found
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>

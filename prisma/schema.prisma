@@ -502,3 +502,104 @@ model Waitlist {
 
   @@index([branchId, status])
 }
+
+// Gift Cards
+model GiftCard {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  initialBalance Float
+  remainingBalance Float
+  purchasedBy   String?  // customerId
+  recipientName String?
+  recipientEmail String?
+  recipientPhone String?
+  message       String?
+  status        String   @default("active") // active, redeemed, expired, cancelled
+  purchasedAt   DateTime @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions GiftCardTransaction[]
+
+  @@index([code])
+  @@index([status])
+}
+
+// Gift Card Transactions
+model GiftCardTransaction {
+  id          String   @id @default(cuid())
+  giftCardId  String
+  type        String   // purchase, redeem, topup, refund
+  amount      Float
+  invoiceId   String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  giftCard    GiftCard @relation(fields: [giftCardId], references: [id])
+
+  @@index([giftCardId])
+}
+
+// Tips / Gratuity
+model Tip {
+  id            String   @id @default(cuid())
+  invoiceId     String?
+  staffId       String
+  customerId    String?
+  amount        Float
+  paymentMethod String   @default("cash") // cash, card, wallet
+  status        String   @default("pending") // pending, paid
+  createdAt     DateTime @default(now())
+
+  @@index([staffId])
+  @@index([invoiceId])
+}
+
+// Customer Feedback / Reviews
+model Feedback {
+  id            String   @id @default(cuid())
+  customerId    String
+  appointmentId String?
+  staffId       String?
+  rating        Int      // 1-5
+  comment       String?
+  tags          String?  // comma-separated: friendly,clean,professional
+  status        String   @default("published") // published, hidden, flagged
+  response      String?  // salon response
+  respondedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([customerId])
+  @@index([staffId])
+  @@index([rating])
+}
+
+// Notifications
+model Notification {
+  id          String   @id @default(cuid())
+  type        String   // appointment, payment, inventory, system, marketing
+  title       String
+  message     String
+  category    String   @default("info") // info, warning, error, success
+  isRead      Boolean  @default(false)
+  actionUrl   String?
+  metadata    String?  // JSON string for extra data
+  createdAt   DateTime @default(now())
+
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// Salon Settings (persisted config)
+model SalonSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   // JSON string
+  category    String   // general, business, notifications, security, integrations
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([key])
+}

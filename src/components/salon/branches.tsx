@@ -12,7 +12,11 @@ import {
   CheckCircle2,
   XCircle,
   Globe,
+  Plus,
+  Pencil,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Card,
   CardContent,
@@ -21,6 +25,17 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -49,6 +64,20 @@ interface BranchData {
 export default function BranchesModule() {
   const [branches, setBranches] = useState<BranchData[]>([])
   const [loading, setLoading] = useState(true)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingBranch, setEditingBranch] = useState<BranchData | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [branchForm, setBranchForm] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    branchCode: '',
+    timezone: 'Asia/Karachi',
+    openTime: '09:00',
+    closeTime: '21:00',
+  })
 
   const fetchBranches = useCallback(async () => {
     setLoading(true)
@@ -86,11 +115,17 @@ export default function BranchesModule() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Branch Management</h1>
-        <p className="text-muted-foreground text-sm">
-          Manage your salon branches and locations
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Branch Management</h1>
+          <p className="text-muted-foreground text-sm">
+            Manage your salon branches and locations
+          </p>
+        </div>
+        <Button onClick={() => { setBranchForm({ name: '', address: '', phone: '', email: '', branchCode: '', timezone: 'Asia/Karachi', openTime: '09:00', closeTime: '21:00' }); setAddDialogOpen(true) }}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Branch
+        </Button>
       </div>
 
       {/* Summary Stats */}
@@ -153,17 +188,22 @@ export default function BranchesModule() {
                       Code: {branch.branchCode}
                     </CardDescription>
                   </div>
-                  {branch.isActive ? (
-                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800 text-xs">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Active
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive" className="text-xs">
-                      <XCircle className="h-3 w-3 mr-1" />
-                      Inactive
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditingBranch(branch); setBranchForm({ name: branch.name || '', address: branch.address || '', phone: branch.phone || '', email: branch.email || '', branchCode: branch.branchCode, timezone: branch.timezone, openTime: branch.openTime, closeTime: branch.closeTime }); setEditDialogOpen(true) }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    {branch.isActive ? (
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800 text-xs">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Active
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="text-xs">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Inactive
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -287,6 +327,140 @@ export default function BranchesModule() {
           </CardContent>
         </Card>
       )}
+
+      {/* Add Branch Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Branch</DialogTitle>
+            <DialogDescription>Create a new salon branch location</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Branch Name *</Label>
+                <Input value={branchForm.name} onChange={(e) => setBranchForm({...branchForm, name: e.target.value})} placeholder="Gulberg Branch" />
+              </div>
+              <div className="space-y-2">
+                <Label>Branch Code *</Label>
+                <Input value={branchForm.branchCode} onChange={(e) => setBranchForm({...branchForm, branchCode: e.target.value})} placeholder="GLB" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Address</Label>
+              <Input value={branchForm.address} onChange={(e) => setBranchForm({...branchForm, address: e.target.value})} placeholder="123 Main St" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input value={branchForm.phone} onChange={(e) => setBranchForm({...branchForm, phone: e.target.value})} placeholder="+92-300-0000000" />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input value={branchForm.email} onChange={(e) => setBranchForm({...branchForm, email: e.target.value})} placeholder="branch@salonflow.pk" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Timezone</Label>
+                <Input value={branchForm.timezone} onChange={(e) => setBranchForm({...branchForm, timezone: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Open Time</Label>
+                <Input type="time" value={branchForm.openTime} onChange={(e) => setBranchForm({...branchForm, openTime: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Close Time</Label>
+                <Input type="time" value={branchForm.closeTime} onChange={(e) => setBranchForm({...branchForm, closeTime: e.target.value})} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!branchForm.name || !branchForm.branchCode) { toast.error('Name and code are required'); return }
+              setSubmitting(true)
+              try {
+                const res = await fetch('/api/branches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(branchForm) })
+                const json = await res.json()
+                if (json.success) { toast.success('Branch created'); setAddDialogOpen(false); fetchBranches() }
+                else toast.error(json.error || 'Failed to create branch')
+              } catch { toast.error('Failed to create branch') }
+              finally { setSubmitting(false) }
+            }} disabled={submitting || !branchForm.name || !branchForm.branchCode}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add Branch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Branch Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Branch</DialogTitle>
+            <DialogDescription>Update branch information</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Branch Name *</Label>
+                <Input value={branchForm.name} onChange={(e) => setBranchForm({...branchForm, name: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Branch Code</Label>
+                <Input value={branchForm.branchCode} disabled />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Address</Label>
+              <Input value={branchForm.address} onChange={(e) => setBranchForm({...branchForm, address: e.target.value})} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input value={branchForm.phone} onChange={(e) => setBranchForm({...branchForm, phone: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input value={branchForm.email} onChange={(e) => setBranchForm({...branchForm, email: e.target.value})} />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Timezone</Label>
+                <Input value={branchForm.timezone} onChange={(e) => setBranchForm({...branchForm, timezone: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Open Time</Label>
+                <Input type="time" value={branchForm.openTime} onChange={(e) => setBranchForm({...branchForm, openTime: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Close Time</Label>
+                <Input type="time" value={branchForm.closeTime} onChange={(e) => setBranchForm({...branchForm, closeTime: e.target.value})} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!editingBranch) return
+              setSubmitting(true)
+              try {
+                const res = await fetch(`/api/branches/${editingBranch.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(branchForm) })
+                const json = await res.json()
+                if (json.success) { toast.success('Branch updated'); setEditDialogOpen(false); setEditingBranch(null); fetchBranches() }
+                else toast.error(json.error || 'Failed to update branch')
+              } catch { toast.error('Failed to update branch') }
+              finally { setSubmitting(false) }
+            }} disabled={submitting || !branchForm.name}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

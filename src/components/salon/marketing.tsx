@@ -12,7 +12,10 @@ import {
   Eye,
   MousePointerClick,
   Calendar,
+  Copy,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Card,
   CardContent,
@@ -95,6 +98,8 @@ export default function MarketingModule() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [sendingId, setSendingId] = useState<string | null>(null)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: '',
     type: 'email',
@@ -165,9 +170,13 @@ export default function MarketingModule() {
           scheduledAt: '',
           branchId: '',
         })
+        toast.success('Campaign created successfully')
+      } else {
+        toast.error(json.error || 'Failed to create campaign')
       }
     } catch (err) {
       console.error('Failed to create campaign:', err)
+      toast.error('Failed to create campaign')
     } finally {
       setCreating(false)
     }
@@ -438,6 +447,79 @@ export default function MarketingModule() {
                     ) : (
                       <span>Created: {new Date(campaign.createdAt).toLocaleDateString()}</span>
                     )}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t">
+                    {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={async () => {
+                          setSendingId(campaign.id)
+                          try {
+                            const res = await fetch(`/api/marketing/${campaign.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ status: 'sent' }),
+                            })
+                            const json = await res.json()
+                            if (json.success) {
+                              toast.success(`Campaign "${campaign.name}" sent`)
+                              fetchCampaigns()
+                            } else {
+                              toast.error(json.error || 'Failed to send campaign')
+                            }
+                          } catch {
+                            toast.error('Failed to send campaign')
+                          } finally {
+                            setSendingId(null)
+                          }
+                        }}
+                        disabled={sendingId === campaign.id}
+                      >
+                        {sendingId === campaign.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                        Send
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={async () => {
+                        setDuplicatingId(campaign.id)
+                        try {
+                          const res = await fetch('/api/marketing', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              branchId: campaign.branch?.id,
+                              name: `${campaign.name} (Copy)`,
+                              type: campaign.type,
+                              channel: campaign.channel,
+                              content: campaign.content,
+                              targetAudience: campaign.targetAudience,
+                            }),
+                          })
+                          const json = await res.json()
+                          if (json.success) {
+                            toast.success('Campaign duplicated')
+                            fetchCampaigns()
+                          } else {
+                            toast.error(json.error || 'Failed to duplicate campaign')
+                          }
+                        } catch {
+                          toast.error('Failed to duplicate campaign')
+                        } finally {
+                          setDuplicatingId(null)
+                        }
+                      }}
+                      disabled={duplicatingId === campaign.id}
+                    >
+                      {duplicatingId === campaign.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
+                      Duplicate
+                    </Button>
                   </div>
                 </div>
               ))

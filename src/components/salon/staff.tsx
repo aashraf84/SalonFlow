@@ -42,6 +42,7 @@ import {
   UserX,
   Clock,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 // ---- Types ----
 interface Branch {
@@ -148,7 +149,20 @@ export function StaffModule() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [editStaff, setEditStaff] = useState<StaffMember | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    role: 'stylist',
+    specialization: '',
+    branchId: '',
+    commissionRate: '10',
+    bio: '',
+  })
+  const [editSaving, setEditSaving] = useState(false)
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -215,6 +229,7 @@ export function StaffModule() {
       })
       const json = await res.json()
       if (json.success) {
+        toast.success('Staff added successfully')
         setAddDialogOpen(false)
         setForm({
           firstName: '',
@@ -228,9 +243,12 @@ export function StaffModule() {
           bio: '',
         })
         fetchStaff()
+      } else {
+        toast.error(json.error || 'Failed to add staff')
       }
     } catch (err) {
       console.error('Failed to add staff:', err)
+      toast.error('Failed to add staff')
     } finally {
       setSaving(false)
     }
@@ -239,6 +257,58 @@ export function StaffModule() {
   const openDetail = (member: StaffMember) => {
     setSelectedStaff(member)
     setDetailDialogOpen(true)
+  }
+
+  const openEdit = (member: StaffMember) => {
+    setEditStaff(member)
+    setEditForm({
+      firstName: member.firstName,
+      lastName: member.lastName,
+      email: member.email,
+      phone: member.phone || '',
+      role: member.role,
+      specialization: member.specialization || '',
+      branchId: member.branchId,
+      commissionRate: (member.commissionRate * 100).toFixed(0),
+      bio: member.bio || '',
+    })
+    setEditDialogOpen(true)
+  }
+
+  const handleEditStaff = async () => {
+    if (!editStaff) return
+    setEditSaving(true)
+    try {
+      const res = await fetch(`/api/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: editForm.firstName,
+          lastName: editForm.lastName,
+          email: editForm.email,
+          phone: editForm.phone || null,
+          role: editForm.role,
+          specialization: editForm.specialization || null,
+          branchId: editForm.branchId,
+          commissionRate: parseFloat(editForm.commissionRate) / 100,
+          bio: editForm.bio || null,
+          status: 'active',
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Staff updated successfully')
+        setEditDialogOpen(false)
+        setEditStaff(null)
+        fetchStaff()
+      } else {
+        toast.error(json.error || 'Failed to update staff')
+      }
+    } catch {
+      toast.error('Failed to update staff')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   // Stats
@@ -353,6 +423,12 @@ export function StaffModule() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="text-muted-foreground size-8 animate-spin" />
         </div>
+      ) : filteredStaff.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Users className="h-12 w-12 text-muted-foreground/40 mb-3" />
+          <h3 className="font-semibold text-sm">No staff match your filters</h3>
+          <p className="text-xs text-muted-foreground mt-1">Try adjusting your search or role filter</p>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredStaff.map((member) => {
@@ -422,7 +498,7 @@ export function StaffModule() {
                       <Calendar className="size-3.5" />
                       View Profile
                     </Button>
-                    <Button variant="outline" size="sm" className="gap-1">
+                    <Button variant="outline" size="sm" className="gap-1" onClick={() => openEdit(member)}>
                       <Pencil className="size-3.5" />
                       Edit
                     </Button>
@@ -736,6 +812,82 @@ export function StaffModule() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Staff Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Staff Member</DialogTitle>
+            <DialogDescription>Update team member information</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>First Name</Label>
+                <Input value={editForm.firstName} onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name</Label>
+                <Input value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={editForm.role} onValueChange={(val) => setEditForm((f) => ({ ...f, role: val }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="stylist">Stylist</SelectItem>
+                    <SelectItem value="beautician">Beautician</SelectItem>
+                    <SelectItem value="therapist">Therapist</SelectItem>
+                    <SelectItem value="receptionist">Receptionist</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Select value={editForm.branchId} onValueChange={(val) => setEditForm((f) => ({ ...f, branchId: val }))}>
+                  <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Specialization</Label>
+              <Input value={editForm.specialization} onChange={(e) => setEditForm((f) => ({ ...f, specialization: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Commission Rate (%)</Label>
+              <Input type="number" min="0" max="50" value={editForm.commissionRate} onChange={(e) => setEditForm((f) => ({ ...f, commissionRate: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Bio</Label>
+              <Textarea value={editForm.bio} onChange={(e) => setEditForm((f) => ({ ...f, bio: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEditStaff} disabled={editSaving || !editForm.firstName || !editForm.lastName || !editForm.email}>
+              {editSaving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

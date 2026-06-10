@@ -14,7 +14,10 @@ import {
   Heart,
   Plus,
   Minus,
+  Search,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Card,
   CardContent,
@@ -35,6 +38,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 const formatCurrency = (amount: number) => `PKR ${amount.toLocaleString()}`
 
@@ -129,6 +142,87 @@ export function LoyaltyModule() {
   const [tierBreakdown, setTierBreakdown] = useState<TierBreakdown[]>([])
   const [stats, setStats] = useState<LoyaltyStats | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Award/Redeem dialog state
+  const [awardDialogOpen, setAwardDialogOpen] = useState(false)
+  const [redeemDialogOpen, setRedeemDialogOpen] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [customerResults, setCustomerResults] = useState<{id: string; firstName: string; lastName: string; phone: string; loyaltyPoints: number}[]>([])
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [dialogPoints, setDialogPoints] = useState('')
+  const [dialogDescription, setDialogDescription] = useState('')
+  const [dialogSubmitting, setDialogSubmitting] = useState(false)
+  const [searchingCustomers, setSearchingCustomers] = useState(false)
+
+  const searchCustomers = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setCustomerResults([])
+      return
+    }
+    setSearchingCustomers(true)
+    try {
+      const res = await fetch(`/api/customers?search=${encodeURIComponent(query)}&take=10`)
+      const json = await res.json()
+      if (json.success) {
+        setCustomerResults(json.data.map((c: {id: string; firstName: string; lastName: string; phone: string; loyaltyPoints: number}) => ({
+          id: c.id,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          phone: c.phone,
+          loyaltyPoints: c.loyaltyPoints,
+        })))
+      }
+    } catch {
+      setCustomerResults([])
+    } finally {
+      setSearchingCustomers(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => searchCustomers(customerSearch), 300)
+    return () => clearTimeout(timeout)
+  }, [customerSearch, searchCustomers])
+
+  const resetDialog = () => {
+    setCustomerSearch('')
+    setCustomerResults([])
+    setSelectedCustomerId('')
+    setDialogPoints('')
+    setDialogDescription('')
+    setDialogSubmitting(false)
+  }
+
+  const handleLoyaltyAction = async (action: 'award' | 'redeem') => {
+    if (!selectedCustomerId || !dialogPoints || parseInt(dialogPoints) <= 0) return
+    setDialogSubmitting(true)
+    try {
+      const res = await fetch('/api/loyalty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          customerId: selectedCustomerId,
+          points: parseInt(dialogPoints),
+          description: dialogDescription || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success(action === 'award' ? 'Points awarded successfully' : 'Points redeemed successfully')
+        if (action === 'award') setAwardDialogOpen(false)
+        else setRedeemDialogOpen(false)
+        resetDialog()
+        fetchData()
+      } else {
+        toast.error(json.error || 'Failed to process request')
+      }
+    } catch {
+      toast.error('An error occurred. Please try again.')
+    } finally {
+      setDialogSubmitting(false)
+    }
+  }
 
   const fetchData = useCallback(async () => {
     try {
@@ -387,7 +481,7 @@ export function LoyaltyModule() {
                 Manually award loyalty points to a customer
               </p>
             </div>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" onClick={() => { resetDialog(); setAwardDialogOpen(true) }}>
               Award
             </Button>
           </CardContent>
@@ -403,12 +497,132 @@ export function LoyaltyModule() {
                 Process a loyalty points redemption for a customer
               </p>
             </div>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" onClick={() => { resetDialog(); setRedeemDialogOpen(true) }}>
               Redeem
             </Button>
           </CardContent>
         </Card>
       </div>
+
+      {/* Award Points Dialog */}
+      <Dialog open={awardDialogOpen} onOpenChange={(open) => { setAwardDialogOpen(open); if (!open) resetDialog() }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Award Loyalty Points</DialogTitle>
+            <DialogDescription>Manually award points to a customer</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Search Customer</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or phone..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {searchingCustomers && <p className="text-xs text-muted-foreground">Searching...</p>}
+              {customerResults.length > 0 && !selectedCustomerId && (
+                <div className="border rounded-lg max-h-40 overflow-y-auto">
+                  {customerResults.map((c) => (
+                    <button
+                      key={c.id}
+                      className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm border-b last:border-0"
+                      onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(`${c.firstName} ${c.lastName}`); setCustomerResults([]) }}
+                    >
+                      <span className="font-medium">{c.firstName} {c.lastName}</span>
+                      <span className="text-muted-foreground ml-2">{c.phone}</span>
+                      <span className="text-xs text-muted-foreground ml-2">({c.loyaltyPoints.toLocaleString()} pts)</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedCustomerId && (
+                <p className="text-xs text-emerald-600 font-medium">Customer selected</p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Points *</Label>
+                <Input type="number" min="1" value={dialogPoints} onChange={(e) => setDialogPoints(e.target.value)} placeholder="100" />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={dialogDescription} onChange={(e) => setDialogDescription(e.target.value)} placeholder="Reason for award" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAwardDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => handleLoyaltyAction('award')} disabled={dialogSubmitting || !selectedCustomerId || !dialogPoints}>
+              {dialogSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Award Points
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Redeem Points Dialog */}
+      <Dialog open={redeemDialogOpen} onOpenChange={(open) => { setRedeemDialogOpen(open); if (!open) resetDialog() }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Redeem Loyalty Points</DialogTitle>
+            <DialogDescription>Process a points redemption for a customer</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Search Customer</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or phone..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {searchingCustomers && <p className="text-xs text-muted-foreground">Searching...</p>}
+              {customerResults.length > 0 && !selectedCustomerId && (
+                <div className="border rounded-lg max-h-40 overflow-y-auto">
+                  {customerResults.map((c) => (
+                    <button
+                      key={c.id}
+                      className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm border-b last:border-0"
+                      onClick={() => { setSelectedCustomerId(c.id); setCustomerSearch(`${c.firstName} ${c.lastName}`); setCustomerResults([]) }}
+                    >
+                      <span className="font-medium">{c.firstName} {c.lastName}</span>
+                      <span className="text-muted-foreground ml-2">{c.phone}</span>
+                      <span className="text-xs text-amber-600 ml-2">({c.loyaltyPoints.toLocaleString()} pts available)</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedCustomerId && (
+                <p className="text-xs text-emerald-600 font-medium">Customer selected</p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Points to Redeem *</Label>
+                <Input type="number" min="1" value={dialogPoints} onChange={(e) => setDialogPoints(e.target.value)} placeholder="50" />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input value={dialogDescription} onChange={(e) => setDialogDescription(e.target.value)} placeholder="Reason for redemption" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRedeemDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => handleLoyaltyAction('redeem')} disabled={dialogSubmitting || !selectedCustomerId || !dialogPoints}>
+              {dialogSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Redeem Points
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

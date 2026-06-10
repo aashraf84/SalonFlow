@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,8 @@ export function CustomersModule() {
 
   // Add Customer Dialog
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
+  const [deleteCustomer, setDeleteCustomer] = useState<Customer | null>(null)
   const [addForm, setAddForm] = useState({
     firstName: '',
     lastName: '',
@@ -236,12 +239,16 @@ export function CustomersModule() {
       })
       const data = await res.json()
       if (data.success) {
+        toast.success('Customer added successfully')
         setShowAddDialog(false)
         resetAddForm()
         fetchCustomers()
+      } else {
+        toast.error(data.error || 'Failed to add customer')
       }
     } catch (err) {
       console.error('Failed to add customer:', err)
+      toast.error('Failed to add customer')
     } finally {
       setSubmitting(false)
     }
@@ -598,6 +605,14 @@ export function CustomersModule() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditCustomer(customer)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -809,6 +824,69 @@ export function CustomersModule() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={!!editCustomer} onOpenChange={(open) => { if (!open) setEditCustomer(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+            <DialogDescription>Update customer information</DialogDescription>
+          </DialogHeader>
+          {editCustomer && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>First Name</Label>
+                  <Input defaultValue={editCustomer.firstName} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>Last Name</Label>
+                  <Input defaultValue={editCustomer.lastName} disabled />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input defaultValue={editCustomer.phone} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input defaultValue={editCustomer.email || ''} disabled />
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                Customer editing requires a PATCH endpoint. Feature coming soon!
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditCustomer(null)}>Close</Button>
+            <Button onClick={() => { toast.info('Feature coming soon'); setEditCustomer(null) }}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Customer Dialog */}
+      <Dialog open={!!deleteCustomer} onOpenChange={(open) => { if (!open) setDeleteCustomer(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Customer</DialogTitle>
+            <DialogDescription>Are you sure you want to delete this customer?</DialogDescription>
+          </DialogHeader>
+          {deleteCustomer && (
+            <div className="space-y-3">
+              <p className="text-sm">This will permanently remove <strong>{deleteCustomer.firstName} {deleteCustomer.lastName}</strong> and all associated data.</p>
+              <div className="rounded-lg border bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-600 dark:text-red-400">
+                Customer deletion requires a DELETE endpoint. Feature coming soon!
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteCustomer(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { toast.info('Feature coming soon'); setDeleteCustomer(null) }}>Delete Customer</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -17,6 +17,12 @@ export type SalonModule =
   | 'ai-assistant'
   | 'reports'
   | 'settings'
+  | 'gift-cards'
+  | 'notifications'
+  | 'feedback'
+  | 'scheduling'
+  | 'commissions'
+  | 'waitlist'
 
 interface SalonStore {
   activeModule: SalonModule

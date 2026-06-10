@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import {
   BarChart3,
   CalendarDays,
@@ -159,6 +160,107 @@ export default function ReportsModule() {
   const handleBack = () => {
     setSelectedReport(null)
     setReportData(null)
+  }
+
+  // Export helpers
+  const flattenData = (data: Record<string, unknown>[], parentKey = ''): Record<string, unknown>[] => {
+    return data.map((item) => {
+      const flat: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(item)) {
+        const newKey = parentKey ? `${parentKey}_${key}` : key
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          Object.assign(flat, flattenData([value as Record<string, unknown>], newKey)[0])
+        } else {
+          flat[newKey] = value
+        }
+      }
+      return flat
+    })
+  }
+
+  const exportReport = (format: 'csv' | 'excel' | 'pdf') => {
+    if (!reportData || !selectedReport) return
+
+    try {
+      let rows: Record<string, unknown>[] = []
+      if (Array.isArray(reportData)) {
+        rows = flattenData(reportData)
+      } else if (typeof reportData === 'object') {
+        // For object data, create a single-row or multi-row summary
+        const entries: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(reportData as Record<string, unknown>)) {
+          if (typeof value === 'number' || typeof value === 'string' || value === null) {
+            entries[key] = value
+          } else if (Array.isArray(value) && value.length > 0 && typeof value[0] !== 'object') {
+            entries[key] = (value as unknown[]).join(', ')
+          }
+        }
+        rows = [entries]
+
+        // Also export sub-arrays as separate rows
+        const subArrays = Object.entries(reportData as Record<string, unknown>)
+          .filter(([, v]) => Array.isArray(v) && v.length > 0 && typeof (v as unknown[])[0] === 'object')
+        for (const [key, arr] of subArrays) {
+          const subRows = flattenData(arr as Record<string, unknown>[], key)
+          rows.push(...subRows)
+        }
+      }
+
+      if (rows.length === 0) {
+        toast.error('No data to export')
+        return
+      }
+
+      const headers = Object.keys(rows[0])
+
+      if (format === 'csv' || format === 'excel') {
+        const csvContent = [
+          headers.join(','),
+          ...rows.map((row) =>
+            headers
+              .map((h) => {
+                const val = row[h]
+                const str = val === null || val === undefined ? '' : String(val)
+                return str.includes(',') || str.includes('"') || str.includes('\n')
+                  ? `"${str.replace(/"/g, '""')}"`
+                  : str
+              })
+              .join(',')
+          ),
+        ].join('\n')
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${selectedReport.id}-report.${format === 'excel' ? 'csv' : 'csv'}`
+        a.click()
+        URL.revokeObjectURL(url)
+        toast.success(`${format === 'excel' ? 'Excel' : 'CSV'} exported successfully`)
+      } else if (format === 'pdf') {
+        // PDF - generate a simple text-based downloadable file
+        const textContent = [
+          `${selectedReport.title}`,
+          `Generated: ${new Date().toLocaleString()}`,
+          `${'='.repeat(60)}`,
+          '',
+          ...rows.map((row) =>
+            headers.map((h) => `${h}: ${row[h] ?? '—'}`).join(' | ')
+          ),
+        ].join('\n')
+
+        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${selectedReport.id}-report.txt`
+        a.click()
+        URL.revokeObjectURL(url)
+        toast.success('Report exported as text')
+      }
+    } catch {
+      toast.error('Failed to export report')
+    }
   }
 
   // Render report data based on type
@@ -467,15 +569,15 @@ export default function ReportsModule() {
                 <Download className="h-3 w-3" />
                 Export as:
               </Badge>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => exportReport('pdf')}>
                 <FileText className="h-3 w-3" />
                 PDF
               </Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => exportReport('excel')}>
                 <FileSpreadsheet className="h-3 w-3" />
                 Excel
               </Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => exportReport('csv')}>
                 <FileDown className="h-3 w-3" />
                 CSV
               </Button>

@@ -98,3 +98,107 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
+
+// POST /api/loyalty - Award or redeem loyalty points
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { customerId, type, points, description, referenceId } = body
+
+    if (!customerId) {
+      return NextResponse.json(
+        { success: false, error: 'customerId is required' },
+        { status: 400 }
+      )
+    }
+
+    if (!type || !['earn', 'redeem', 'bonus', 'referral', 'birthday'].includes(type)) {
+      return NextResponse.json(
+        { success: false, error: 'type must be one of: earn, redeem, bonus, referral, birthday' },
+        { status: 400 }
+      )
+    }
+
+    if (!points || points <= 0) {
+      return NextResponse.json(
+        { success: false, error: 'points must be greater than 0' },
+        { status: 400 }
+      )
+    }
+
+    // Verify customer exists
+    const customer = await db.customer.findUnique({ where: { id: customerId } })
+    if (!customer) {
+      return NextResponse.json(
+        { success: false, error: 'Customer not found' },
+        { status: 404 }
+      )
+    }
+
+    // For redeem, check if customer has enough points
+    if (type === 'redeem' && customer.loyaltyPoints < points) {
+      return NextResponse.json(
+        { success: false, error: `Insufficient points. Customer has ${customer.loyaltyPoints} points.` },
+        { status: 400 }
+      )
+    }
+
+    // Create transaction
+    const transaction = await db.loyaltyTransaction.create({
+      data: {
+        customerId,
+        type,
+        points,
+        description: description || null,
+        referenceId: referenceId || null,
+      },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            loyaltyTier: true,
+            loyaltyPoints: true,
+          },
+        },
+      },
+    })
+
+    // Update customer loyalty points
+    const pointsDelta = type === 'redeem' ? -points : points
+    const updatedCustomer = await db.customer.update({
+      where: { id: customerId },
+      data: { loyaltyPoints: { increment: pointsDelta } },
+    })
+
+    // Determine tier upgrade
+    const newPoints = updatedCustomer.loyaltyPoints
+    let newTier = customer.loyaltyTier
+    if (newPoints >= 10000) newTier = 'vip'
+    else if (newPoints >= 5000) newTier = 'platinum'
+    else if (newPoints >= 2000) newTier = 'gold'
+    else newTier = 'silver'
+
+    if (newTier !== customer.loyaltyTier) {
+      await db.customer.update({
+        where: { id: customerId },
+        data: { loyaltyTier: newTier },
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        transaction,
+        previousPoints: customer.loyaltyPoints,
+        newPoints: updatedCustomer.loyaltyPoints,
+        tierUpgraded: newTier !== customer.loyaltyTier,
+        newTier: newTier !== customer.loyaltyTier ? newTier : undefined,
+      },
+    }, { status: 201 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to process loyalty transaction'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
+}

@@ -10,7 +10,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Filter,
+  Plus,
+  Trash2,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Card,
   CardContent,
@@ -47,6 +51,22 @@ import {
   Pie,
   Cell,
 } from 'recharts'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 const formatCurrency = (amount: number) => `PKR ${amount.toLocaleString()}`
 
@@ -108,6 +128,18 @@ export default function FinanceModule() {
   const [monthlyData, setMonthlyData] = useState<
     { month: string; revenue: number; expenses: number }[]
   >([])
+  const [addExpenseOpen, setAddExpenseOpen] = useState(false)
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
+  const [expenseForm, setExpenseForm] = useState({
+    category: 'supplies',
+    amount: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0],
+    paidBy: '',
+    branchId: '',
+  })
+  const [branches, setBranches] = useState<{id: string; name: string}[]>([])
+  const [submittingExpense, setSubmittingExpense] = useState(false)
 
   const fetchFinance = useCallback(async () => {
     setLoading(true)
@@ -116,20 +148,37 @@ export default function FinanceModule() {
       if (dateFrom) params.set('from', dateFrom)
       if (dateTo) params.set('to', dateTo)
 
-      const res = await fetch(`/api/finance?${params.toString()}`)
-      const json = await res.json()
+      const [financeRes, expensesRes] = await Promise.all([
+        fetch(`/api/finance?${params.toString()}`),
+        fetch('/api/expenses?take=50'),
+      ])
+      const json = await financeRes.json()
+      const expensesJson = await expensesRes.json()
+
       if (json.success) {
         setData(json.data)
 
-        const categories = json.data.expensesByCategory || []
-        const totalExp = categories.reduce((s: number, c: { amount: number }) => s + c.amount, 0)
+        // Build monthly data from actual expenses
+        const allExpenses: {date: string; amount: number}[] = expensesJson.success ? expensesJson.data : []
         const totalRev = json.data.totalRevenue || 0
+        const totalExp = json.data.totalExpenses || 0
 
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+        // Group expenses by month
+        const monthMap: Record<string, number> = {}
+        for (const exp of allExpenses) {
+          const d = new Date(exp.date)
+          const key = d.toLocaleDateString('en-US', { month: 'short' })
+          monthMap[key] = (monthMap[key] || 0) + exp.amount
+        }
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        const now = new Date()
+        const months = monthNames.slice(Math.max(0, now.getMonth() - 5), now.getMonth() + 1)
+
         const monthly = months.map((month) => ({
           month,
-          revenue: Math.round((totalRev / 6) * (0.7 + Math.random() * 0.6)),
-          expenses: Math.round((totalExp / 6) * (0.7 + Math.random() * 0.6)),
+          revenue: Math.round(totalRev / months.length),
+          expenses: Math.round(monthMap[month] || totalExp / months.length),
         }))
         setMonthlyData(monthly)
       }
@@ -140,9 +189,78 @@ export default function FinanceModule() {
     }
   }, [dateFrom, dateTo])
 
+  const fetchBranches = useCallback(async () => {
+    try {
+      const res = await fetch('/api/branches')
+      const json = await res.json()
+      if (json.success) {
+        setBranches(json.data.map((b: {id: string; name: string}) => ({ id: b.id, name: b.name })))
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchBranches()
+  }, [fetchBranches])
+
   useEffect(() => {
     fetchFinance()
   }, [fetchFinance])
+
+  const handleAddExpense = async () => {
+    if (!expenseForm.amount || !expenseForm.date || !expenseForm.branchId) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    setSubmittingExpense(true)
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: expenseForm.category,
+          amount: parseFloat(expenseForm.amount),
+          description: expenseForm.description || undefined,
+          date: expenseForm.date,
+          paidBy: expenseForm.paidBy || undefined,
+          branchId: expenseForm.branchId,
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Expense added successfully')
+        setAddExpenseOpen(false)
+        setExpenseForm({ category: 'supplies', amount: '', description: '', date: new Date().toISOString().split('T')[0], paidBy: '', branchId: '' })
+        fetchFinance()
+      } else {
+        toast.error(json.error || 'Failed to add expense')
+      }
+    } catch {
+      toast.error('Failed to add expense')
+    } finally {
+      setSubmittingExpense(false)
+    }
+  }
+
+  const handleDeleteExpense = async (id: string) => {
+    setDeletingExpenseId(id)
+    try {
+      const res = await fetch(`/api/expenses/${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Expense deleted')
+        fetchFinance()
+      } else {
+        toast.error(json.error || 'Failed to delete expense')
+      }
+    } catch {
+      toast.error('Failed to delete expense')
+    } finally {
+      setDeletingExpenseId(null)
+    }
+  }
 
   const profitMargin =
     data && data.totalRevenue > 0
@@ -191,13 +309,16 @@ export default function FinanceModule() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              placeholder="To"
               className="h-9 w-[140px]"
             />
           </div>
           <Button variant="outline" size="sm" onClick={fetchFinance}>
             <Filter className="h-4 w-4 mr-1" />
             Apply
+          </Button>
+          <Button size="sm" onClick={() => setAddExpenseOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Expense
           </Button>
         </div>
       </div>
@@ -421,6 +542,7 @@ export default function FinanceModule() {
                   <TableHead>Description</TableHead>
                   <TableHead>Branch</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -444,11 +566,26 @@ export default function FinanceModule() {
                       <TableCell className="text-right font-medium">
                         {formatCurrency(expense.amount)}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-red-500"
+                          onClick={() => handleDeleteExpense(expense.id)}
+                          disabled={deletingExpenseId === expense.id}
+                        >
+                          {deletingExpenseId === expense.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No recent expenses found
                     </TableCell>
                   </TableRow>
@@ -458,6 +595,71 @@ export default function FinanceModule() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Expense Dialog */}
+      <Dialog open={addExpenseOpen} onOpenChange={setAddExpenseOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Expense</DialogTitle>
+            <DialogDescription>Record a new expense transaction</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Category *</Label>
+                <Select value={expenseForm.category} onValueChange={(v) => setExpenseForm({...expenseForm, category: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rent">Rent</SelectItem>
+                    <SelectItem value="utilities">Utilities</SelectItem>
+                    <SelectItem value="supplies">Supplies</SelectItem>
+                    <SelectItem value="payroll">Payroll</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                    <SelectItem value="marketing">Marketing</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Amount (PKR) *</Label>
+                <Input type="number" min="0" value={expenseForm.amount} onChange={(e) => setExpenseForm({...expenseForm, amount: e.target.value})} placeholder="0" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input value={expenseForm.description} onChange={(e) => setExpenseForm({...expenseForm, description: e.target.value})} placeholder="Brief description" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date *</Label>
+                <Input type="date" value={expenseForm.date} onChange={(e) => setExpenseForm({...expenseForm, date: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Paid By</Label>
+                <Input value={expenseForm.paidBy} onChange={(e) => setExpenseForm({...expenseForm, paidBy: e.target.value})} placeholder="Name" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Branch *</Label>
+              <Select value={expenseForm.branchId} onValueChange={(v) => setExpenseForm({...expenseForm, branchId: v})}>
+                <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddExpenseOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddExpense} disabled={submittingExpense || !expenseForm.amount || !expenseForm.branchId}>
+              {submittingExpense && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add Expense
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

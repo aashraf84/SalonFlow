@@ -25,6 +25,11 @@ import {
   Bell,
   Search,
   ChevronRight,
+  Gift,
+  MessageSquare,
+  Clock,
+  Coins,
+  Timer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -51,20 +56,32 @@ const BranchesModule = dynamic(() => import('@/components/salon/branches'), { ss
 const AIAssistantModule = dynamic(() => import('@/components/salon/ai-assistant'), { ssr: false })
 const ReportsModule = dynamic(() => import('@/components/salon/reports'), { ssr: false })
 const SettingsModule = dynamic(() => import('@/components/salon/settings'), { ssr: false })
+const GiftCardModule = dynamic(() => import('@/components/salon/gift-cards').then(mod => ({ default: mod.GiftCardModule })), { ssr: false })
+const NotificationModule = dynamic(() => import('@/components/salon/notifications').then(mod => ({ default: mod.NotificationModule })), { ssr: false })
+const FeedbackModule = dynamic(() => import('@/components/salon/feedback').then(mod => ({ default: mod.FeedbackModule })), { ssr: false })
+const SchedulingModule = dynamic(() => import('@/components/salon/scheduling').then(mod => ({ default: mod.SchedulingModule })), { ssr: false })
+const CommissionModule = dynamic(() => import('@/components/salon/commissions').then(mod => ({ default: mod.CommissionModule })), { ssr: false })
+const WaitlistModule = dynamic(() => import('@/components/salon/waitlist').then(mod => ({ default: mod.WaitlistModule })), { ssr: false })
 
 const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; group: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="size-[18px]" />, group: 'Main' },
   { key: 'appointments', label: 'Appointments', icon: <Calendar className="size-[18px]" />, group: 'Main' },
   { key: 'customers', label: 'Customers', icon: <Users className="size-[18px]" />, group: 'Main' },
+  { key: 'notifications', label: 'Notifications', icon: <Bell className="size-[18px]" />, group: 'Main' },
   { key: 'services', label: 'Services', icon: <Scissors className="size-[18px]" />, group: 'Operations' },
   { key: 'staff', label: 'Staff', icon: <UserCog className="size-[18px]" />, group: 'Operations' },
   { key: 'rooms', label: 'Rooms', icon: <DoorOpen className="size-[18px]" />, group: 'Operations' },
+  { key: 'scheduling', label: 'Scheduling', icon: <Clock className="size-[18px]" />, group: 'Operations' },
   { key: 'memberships', label: 'Memberships', icon: <Crown className="size-[18px]" />, group: 'Business' },
   { key: 'loyalty', label: 'Loyalty & Rewards', icon: <Star className="size-[18px]" />, group: 'Business' },
+  { key: 'gift-cards', label: 'Gift Cards', icon: <Gift className="size-[18px]" />, group: 'Business' },
   { key: 'pos', label: 'Point of Sale', icon: <ShoppingCart className="size-[18px]" />, group: 'Business' },
   { key: 'inventory', label: 'Inventory', icon: <Package className="size-[18px]" />, group: 'Business' },
   { key: 'finance', label: 'Finance', icon: <Wallet className="size-[18px]" />, group: 'Business' },
-  { key: 'marketing', label: 'Marketing', icon: <Megaphone className="size-[18px]" />, group: 'Business' },
+  { key: 'commissions', label: 'Commissions', icon: <Coins className="size-[18px]" />, group: 'Business' },
+  { key: 'waitlist', label: 'Waitlist', icon: <Timer className="size-[18px]" />, group: 'Business' },
+  { key: 'marketing', label: 'Marketing', icon: <Megaphone className="size-[18px]" />, group: 'Intelligence' },
+  { key: 'feedback', label: 'Feedback', icon: <MessageSquare className="size-[18px]" />, group: 'Intelligence' },
   { key: 'branches', label: 'Branches', icon: <Building2 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'reports', label: 'Reports', icon: <BarChart3 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'ai-assistant', label: 'AI Assistant', icon: <Bot className="size-[18px]" />, group: 'Intelligence' },
@@ -145,6 +162,12 @@ export default function SalonFlowOS() {
       case 'ai-assistant': return <AIAssistantModule />
       case 'reports': return <ReportsModule />
       case 'settings': return <SettingsModule />
+      case 'gift-cards': return <GiftCardModule />
+      case 'notifications': return <NotificationModule />
+      case 'feedback': return <FeedbackModule />
+      case 'scheduling': return <SchedulingModule />
+      case 'commissions': return <CommissionModule />
+      case 'waitlist': return <WaitlistModule />
       default: return <DashboardModule />
     }
   }
