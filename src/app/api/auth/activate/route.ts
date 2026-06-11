@@ -16,10 +16,19 @@ export async function POST(req: NextRequest) {
     })
 
     if (existingActivation && existingActivation.status === 'active') {
-      return NextResponse.json({
-        success: true,
-        data: { message: 'Device already activated', deviceId: existingActivation.deviceId },
-      })
+      // Check if activation has expired
+      if (existingActivation.expiresAt && new Date() > existingActivation.expiresAt) {
+        await db.deviceActivation.update({
+          where: { id: existingActivation.id },
+          data: { status: 'expired' }
+        })
+        // Fall through to re-activation logic below
+      } else {
+        return NextResponse.json({
+          success: true,
+          data: { message: 'Device already activated', deviceId: existingActivation.deviceId },
+        })
+      }
     }
 
     // Validate serial key against SerialKey table
@@ -35,15 +44,57 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Serial key has been revoked.' }, { status: 403 })
     }
 
-    if (keyRecord.status === 'expired') {
+    // Check if key has expired based on validUntil date
+    if (keyRecord.validUntil && new Date() > keyRecord.validUntil) {
+      await db.serialKey.update({
+        where: { id: keyRecord.id },
+        data: { status: 'expired' }
+      })
       return NextResponse.json({ success: false, error: 'Serial key has expired.' }, { status: 403 })
     }
 
     if (keyRecord.activeDevices >= keyRecord.maxDevices) {
-      return NextResponse.json({ success: false, error: 'Maximum device activations reached for this key.' }, { status: 403 })
+      return NextResponse.json({ success: false, error: `Maximum device activations reached for this key (${keyRecord.maxDevices} device(s) allowed).` }, { status: 403 })
     }
 
-    // Activate the device
+    // Activate or re-activate the device
+    if (existingActivation) {
+      // Re-activate: update existing record instead of creating new one (avoids unique constraint violation)
+      const activation = await db.deviceActivation.update({
+        where: { id: existingActivation.id },
+        data: {
+          serialKey,
+          deviceName: deviceName || existingActivation.deviceName || 'Unknown Device',
+          browserInfo: browserInfo || req.headers.get('user-agent') || existingActivation.browserInfo || 'unknown',
+          ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+          status: 'active',
+          activatedAt: new Date(),
+          revokedAt: null,
+          expiresAt: keyRecord.validUntil,
+        }
+      })
+
+      // Increment activation count on the serial key
+      await db.serialKey.update({
+        where: { key: serialKey },
+        data: {
+          activeDevices: { increment: 1 },
+          status: 'activated',
+          activatedAt: new Date(),
+        }
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          activationId: activation.id,
+          deviceId: activation.deviceId,
+          message: 'Device re-activated successfully!',
+        }
+      })
+    }
+
+    // New activation
     const activation = await db.deviceActivation.create({
       data: {
         deviceId,
@@ -76,7 +127,7 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('Activation error:', error)
-    return NextResponse.json({ success: false, error: 'Activation failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Activation failed. Please try again.' }, { status: 500 })
   }
 }
 

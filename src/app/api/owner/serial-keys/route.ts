@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
           key,
           type,
           status: clientId ? 'assigned' : 'available',
-          maxDevices: 1,
+          maxDevices: type === 'trial' ? 1 : 5,
           validFrom: clientId ? new Date() : undefined,
           validUntil: clientId
             ? type === 'subscription'

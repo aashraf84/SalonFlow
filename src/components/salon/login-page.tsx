@@ -74,6 +74,52 @@ function LiveClock() {
   )
 }
 
+// ─── Demo Login Button Component (reusable) ────────────────────────────────
+function DemoLoginButton({ onClick, disabled, compact = false }: { onClick: () => void; disabled: boolean; compact?: boolean }) {
+  return (
+    <div className={cn(
+      "relative overflow-hidden rounded-2xl",
+      compact ? "bg-white/6 border border-amber-400/15 p-2.5" : "bg-white/8 backdrop-blur-xl border border-amber-400/20 p-3"
+    )}>
+      <div className="absolute -top-16 -right-16 size-32 bg-amber-500/15 rounded-full blur-3xl" />
+      <div className="relative">
+        <div className={cn("flex items-center gap-3", compact && "gap-2.5", !compact && "mb-2")}>
+          <div className={cn(
+            "flex items-center justify-center rounded-xl bg-gradient-to-br from-amber-400/30 to-orange-500/30 border border-amber-400/25 shrink-0",
+            compact ? "size-8" : "size-9"
+          )}>
+            <Sparkles className={cn("text-amber-300", compact ? "size-3.5" : "size-4")} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={cn("font-bold text-white", compact ? "text-xs" : "text-sm")}>Try Demo Mode</p>
+            <p className="text-[10px] text-white/40">{compact ? 'Full access, no activation needed' : 'Skip activation & explore all features'}</p>
+          </div>
+        </div>
+        <Button
+          className={cn(
+            "w-full text-sm font-semibold rounded-xl gap-2 bg-gradient-to-r from-amber-500/80 to-orange-600/80 hover:from-amber-500 hover:to-orange-600 text-white border border-amber-400/30 hover:border-amber-400/50 shadow-lg shadow-amber-500/20 disabled:opacity-50 transition-all duration-200",
+            compact ? "h-9" : "h-10"
+          )}
+          onClick={onClick}
+          disabled={disabled}
+        >
+          {disabled ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Signing In...
+            </>
+          ) : (
+            <>
+              <Zap className="size-4" />
+              Demo Login
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Login Page ─────────────────────────────────────────────────────────
 interface LoginPageProps {
   onLogin: (user: { id: string; email: string; name: string; role: string; avatar?: string; phone?: string; token: string }) => void
@@ -96,7 +142,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
   // Demo login animation
   const [demoTyping, setDemoTyping] = useState(false)
-  const [demoStep, setDemoStep] = useState(0)
 
   // ─── Initialize ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -108,6 +153,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         localStorage.setItem('salonflow_device_id', storedDeviceId)
       }
       setDeviceId(storedDeviceId)
+
+      // Seed demo data FIRST (ensures serial keys exist before activation check)
+      try {
+        await fetch('/api/auth/seed', { method: 'GET' })
+      } catch { /* ignore seed errors */ }
 
       // Check if device is already activated
       try {
@@ -122,11 +172,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       } catch {
         setPhase('activate')
       }
-
-      // Seed demo data on first load
-      try {
-        await fetch('/api/auth/seed', { method: 'GET' })
-      } catch { /* ignore */ }
     }
     init()
   }, [])
@@ -210,14 +255,28 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       if (json.success) {
         localStorage.setItem('salonflow_token', json.data.token)
-        toast.success(`Welcome to SalonFlow OS Demo!`)
-        await new Promise(r => setTimeout(r, 300))
+
+        // Auto-activate device for demo users (bypasses activation requirement)
+        try {
+          await fetch('/api/auth/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              deviceId,
+              serialKey: 'SALON-DEMO-2024-ACTIVATION',
+              deviceName: navigator.userAgent.split(' ').slice(-1)[0] || 'Demo Device',
+              browserInfo: navigator.userAgent.substring(0, 100),
+            }),
+          })
+        } catch { /* ignore auto-activation errors */ }
+
+        toast.success('Welcome to SalonFlow OS Demo!')
         onLogin(json.data)
       } else {
         toast.error(json.error || 'Demo login failed')
       }
     } catch {
-      toast.error('Connection error')
+      toast.error('Connection error. Please try again.')
     }
     setDemoTyping(false)
   }
@@ -251,6 +310,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               className="flex flex-col items-center gap-4"
             >
               <Loader2 className="size-8 text-white/60 animate-spin" />
+              <p className="text-sm text-white/40">Initializing SalonFlow OS...</p>
             </motion.div>
           ) : phase === 'activate' || phase === 'activating' ? (
             /* ═══ SERIAL KEY ACTIVATION ═════════════════════════════════════════ */
@@ -286,13 +346,28 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <div className="relative">
                     <Key className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-white/40" />
                     <Input
-                      placeholder="Enter Serial Key (e.g. SALONFLOW-PRO-2024-LICENSE)"
+                      placeholder="Enter Serial Key (e.g. SALON-DEMO-2024-ACTIVATION)"
                       className="pl-11 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20"
                       value={serialKey}
                       onChange={e => setSerialKey(e.target.value.toUpperCase())}
                       onKeyDown={e => handleKeyDown(e, 'activate')}
                       disabled={phase === 'activating'}
                     />
+                  </div>
+
+                  {/* Available keys hint */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {['SALON-DEMO-2024-ACTIVATION', 'SALONFLOW-PRO-2024-LICENSE', 'SF-DEMO-2024-OWNER-ACTIV'].map(key => (
+                      <button
+                        key={key}
+                        type="button"
+                        className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/30 hover:text-white/60 hover:bg-white/10 hover:border-white/20 transition-all"
+                        onClick={() => setSerialKey(key)}
+                        disabled={phase === 'activating'}
+                      >
+                        {key}
+                      </button>
+                    ))}
                   </div>
 
                   {activationError && (
@@ -341,40 +416,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 transition={{ delay: 0.4 }}
                 className="mt-3"
               >
-                <div className="bg-white/8 backdrop-blur-xl border border-amber-400/20 rounded-2xl p-3 relative overflow-hidden">
-                  <div className="absolute -top-16 -right-16 size-32 bg-amber-500/15 rounded-full blur-3xl" />
-                  <div className="relative">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400/30 to-orange-500/30 border border-amber-400/25 shrink-0">
-                        <Sparkles className="size-4 text-amber-300" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-white">Try Demo Mode</p>
-                        <p className="text-[10px] text-white/40">Skip activation & explore all features</p>
-                      </div>
-                    </div>
-                    <Button
-                      className="w-full h-10 text-sm font-semibold rounded-xl gap-2 bg-gradient-to-r from-amber-500/80 to-orange-600/80 hover:from-amber-500 hover:to-orange-600 text-white border border-amber-400/30 hover:border-amber-400/50 shadow-lg shadow-amber-500/20 disabled:opacity-50 transition-all duration-200"
-                      onClick={handleDemoLogin}
-                      disabled={demoTyping || phase === 'activating'}
-                    >
-                      {demoTyping ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Signing In...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="size-4" />
-                          Demo Login
-                        </>
-                      )}
-                    </Button>
-                    <p className="text-[9px] text-white/20 text-center mt-1.5">
-                      Full admin access with sample data. No activation required.
-                    </p>
-                  </div>
-                </div>
+                <DemoLoginButton onClick={handleDemoLogin} disabled={demoTyping || phase === 'activating'} />
+                <p className="text-[9px] text-white/20 text-center mt-1.5">
+                  Full admin access with sample data. No activation required.
+                </p>
               </motion.div>
             </motion.div>
           ) : (
@@ -417,10 +462,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                       <Input
                         placeholder="Enter your email"
                         type="email"
-                        className={cn(
-                          'pl-10 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/25 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20',
-                          demoTyping && demoStep >= 1 && 'border-rose-400/50'
-                        )}
+                        className="pl-10 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/25 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         onKeyDown={e => handleKeyDown(e, 'login')}
@@ -437,10 +479,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                       <Input
                         placeholder="Enter your password"
                         type={showPassword ? 'text' : 'password'}
-                        className={cn(
-                          'pl-10 pr-10 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/25 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20',
-                          demoTyping && demoStep >= 2 && 'border-rose-400/50'
-                        )}
+                        className="pl-10 pr-10 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/25 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
                         onKeyDown={e => handleKeyDown(e, 'login')}
@@ -506,6 +545,18 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                       </>
                     )}
                   </Button>
+
+                  {/* Demo Login on Login Screen */}
+                  <div className="mt-4 pt-4 border-t border-white/10">
+                    <DemoLoginButton onClick={handleDemoLogin} disabled={demoTyping || phase === 'logging-in'} compact />
+                  </div>
+
+                  {/* Demo Credentials Hint */}
+                  <div className="mt-3 p-2.5 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-[10px] text-white/30 text-center">
+                      Demo credentials: <span className="font-mono text-white/50">demo@salonflow.pk</span> / <span className="font-mono text-white/50">demo123</span>
+                    </p>
+                  </div>
                 </div>
 
                 {/* Activation status */}

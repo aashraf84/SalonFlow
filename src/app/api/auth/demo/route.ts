@@ -19,6 +19,20 @@ export async function POST() {
         data: { lastLoginAt: new Date() }
       })
 
+      // Create session for existing user too (ensures session exists)
+      try {
+        await db.userSession.create({
+          data: {
+            userId: existing.id,
+            token,
+            deviceInfo: 'Demo Session',
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          }
+        })
+      } catch {
+        // Session might already exist, ignore error
+      }
+
       return NextResponse.json({
         success: true,
         data: {
@@ -49,14 +63,18 @@ export async function POST() {
     const token = await createToken({ userId: demoUser.id, email: demoUser.email, role: demoUser.role })
 
     // Create session
-    await db.userSession.create({
-      data: {
-        userId: demoUser.id,
-        token,
-        deviceInfo: 'Demo Session',
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      }
-    })
+    try {
+      await db.userSession.create({
+        data: {
+          userId: demoUser.id,
+          token,
+          deviceInfo: 'Demo Session',
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        }
+      })
+    } catch {
+      // Session creation error is non-critical
+    }
 
     return NextResponse.json({
       success: true,
@@ -72,6 +90,6 @@ export async function POST() {
     })
   } catch (error) {
     console.error('Demo login error:', error)
-    return NextResponse.json({ success: false, error: 'Demo login failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Demo login failed. Please try again.' }, { status: 500 })
   }
 }

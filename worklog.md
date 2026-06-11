@@ -213,3 +213,57 @@ Stage Summary:
 - All modules follow consistent patterns: 'use client', import { db } for backend, { success, data/error } response format
 - page.tsx updated with 4 new module integrations
 - All SalonModule types (coupons, audit-log, attendance, tips) were already defined in salon-store.ts
+
+---
+Task ID: 4
+Agent: Main
+Task: Fix demo login failure and activation failed with owner key issues
+
+Work Log:
+- Investigated the login/activation flow by reading all auth API routes, login page component, and auth store
+- Tested API endpoints via curl - confirmed backend APIs work correctly
+- Used agent-browser to test frontend flow - found that demo login and activation buttons work via JS click but had issues with agent-browser's native click
+- Identified multiple root causes:
+  1. **Seed timing issue**: Seed ran AFTER activation check, so serial keys might not exist when user tried to activate
+  2. **No demo login on login screen**: Demo login button only appeared on activation screen, not the login screen
+  3. **Re-activation bug**: Trying to re-activate a previously activated device would fail due to unique constraint on deviceId
+  4. **Owner key maxDevices too restrictive**: Owner-generated keys had maxDevices=1, making them unusable after a single activation
+  5. **Serial key expiry not properly checked**: validUntil date check was missing from activation POST handler
+- Fixed `/src/app/api/auth/activate/route.ts`:
+  - Added re-activation support: updates existing DeviceActivation record instead of creating new one (avoids unique constraint violation)
+  - Added expired activation detection: checks if existing active activation has expired before returning "already activated"
+  - Added proper validUntil expiry check for serial keys
+  - Better error messages with max device count info
+- Fixed `/src/app/api/auth/seed/route.ts`:
+  - Changed seed to run BEFORE activation check in frontend (timing fix)
+  - Added third serial key `SF-DEMO-2024-OWNER-ACTIV` for owner-style testing
+  - Updated SALONFLOW-PRO-2024-LICENSE to maxDevices=10 (was 5)
+  - Upserts now also update maxDevices and status to fix stale data
+- Fixed `/src/app/api/auth/demo/route.ts`:
+  - Added session creation for existing demo users (not just new ones)
+  - Added try/catch around session creation to handle duplicate token errors
+  - Better error messages
+- Fixed `/src/app/api/owner/serial-keys/route.ts`:
+  - Changed maxDevices from 1 to 5 for subscription/one_time keys, 1 for trial
+- Rewrote `/src/components/salon/login-page.tsx`:
+  - Seed now runs BEFORE activation check (critical timing fix)
+  - Demo login auto-activates the device using SALON-DEMO-2024-ACTIVATION key
+  - Added DemoLoginButton as reusable component
+  - Added demo login button to the login screen (not just activation screen)
+  - Added demo credentials hint: demo@salonflow.pk / demo123
+  - Added clickable serial key hint buttons on activation screen for easy key selection
+  - Added loading text "Initializing SalonFlow OS..." during init
+- Verified all flows with agent-browser:
+  - Demo login from activation screen ✅
+  - Demo login from login screen ✅
+  - Activation with owner key (SF-DEMO-2024-OWNER-ACTIV) ✅
+  - Login with demo credentials ✅
+  - Page refresh persistence ✅
+
+Stage Summary:
+- Fixed 5 root causes of demo login and activation failures
+- Demo login now works from both activation and login screens
+- Activation with owner-generated keys now works (increased maxDevices)
+- Re-activation no longer fails with unique constraint error
+- Seed runs before activation check to ensure serial keys exist
+- All flows verified with agent-browser

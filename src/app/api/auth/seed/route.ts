@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Seed demo data (demo user + demo serial key)
+// Seed demo data (demo user + demo serial keys)
 export async function GET() {
   try {
     // Create demo user
@@ -66,7 +66,7 @@ export async function GET() {
     // Create demo serial key (upsert to avoid unique constraint errors)
     await db.serialKey.upsert({
       where: { key: 'SALON-DEMO-2024-ACTIVATION' },
-      update: {},
+      update: { maxDevices: 999, status: 'available' },
       create: {
         key: 'SALON-DEMO-2024-ACTIVATION',
         type: 'one_time',
@@ -76,16 +76,33 @@ export async function GET() {
       }
     })
 
-    // Also create a real serial key for testing
+    // Create a real serial key for testing (with high maxDevices for owner use)
     await db.serialKey.upsert({
       where: { key: 'SALONFLOW-PRO-2024-LICENSE' },
-      update: {},
+      update: { maxDevices: 10, status: 'available' },
       create: {
         key: 'SALONFLOW-PRO-2024-LICENSE',
         type: 'subscription',
-        maxDevices: 5,
+        maxDevices: 10,
         activeDevices: 0,
         status: 'available',
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      }
+    })
+
+    // Create owner-style serial key for testing (SF-XXXX format)
+    await db.serialKey.upsert({
+      where: { key: 'SF-DEMO-2024-OWNER-ACTIV' },
+      update: { maxDevices: 50, status: 'available' },
+      create: {
+        key: 'SF-DEMO-2024-OWNER-ACTIV',
+        type: 'subscription',
+        maxDevices: 50,
+        activeDevices: 0,
+        status: 'available',
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       }
     })
 
