@@ -30,6 +30,7 @@ import {
   Clock,
   Coins,
   Timer,
+  Shield,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -62,6 +63,7 @@ const FeedbackModule = dynamic(() => import('@/components/salon/feedback').then(
 const SchedulingModule = dynamic(() => import('@/components/salon/scheduling').then(mod => ({ default: mod.SchedulingModule })), { ssr: false })
 const CommissionModule = dynamic(() => import('@/components/salon/commissions').then(mod => ({ default: mod.CommissionModule })), { ssr: false })
 const WaitlistModule = dynamic(() => import('@/components/salon/waitlist').then(mod => ({ default: mod.WaitlistModule })), { ssr: false })
+const OwnerModule = dynamic(() => import('@/components/salon/owner').then(mod => ({ default: mod.OwnerModule })), { ssr: false })
 
 const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; group: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="size-[18px]" />, group: 'Main' },
@@ -86,9 +88,10 @@ const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; gr
   { key: 'reports', label: 'Reports', icon: <BarChart3 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'ai-assistant', label: 'AI Assistant', icon: <Bot className="size-[18px]" />, group: 'Intelligence' },
   { key: 'settings', label: 'Settings', icon: <Settings className="size-[18px]" />, group: 'Intelligence' },
+  { key: 'owner', label: 'Owner Panel', icon: <Shield className="size-[18px]" />, group: 'Enterprise' },
 ]
 
-const groups = ['Main', 'Operations', 'Business', 'Intelligence']
+const groups = ['Main', 'Operations', 'Business', 'Intelligence', 'Enterprise']
 
 // ─── Sidebar Nav Item ──────────────────────────────────────────────────────
 
@@ -168,6 +171,7 @@ export default function SalonFlowOS() {
       case 'scheduling': return <SchedulingModule />
       case 'commissions': return <CommissionModule />
       case 'waitlist': return <WaitlistModule />
+      case 'owner': return <OwnerModule />
       default: return <DashboardModule />
     }
   }

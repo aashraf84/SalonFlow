@@ -603,3 +603,255 @@ model SalonSetting {
   @@index([category])
   @@index([key])
 }
+
+// ============================================
+// OWNER MODULE - SaaS Client Management
+// ============================================
+
+// ERP Clients (salon businesses that purchase this software)
+model OwnerClient {
+  id              String   @id @default(cuid())
+  companyName     String
+  slug            String   @unique
+  contactPerson   String
+  email           String   @unique
+  phone           String
+  address         String?
+  city            String?
+  state           String?
+  country         String   @default("Pakistan")
+  postalCode      String?
+  website         String?
+  logoUrl         String?
+  industry        String   @default("Beauty & Salon")
+  businessType    String?  // salon, spa, barbershop, nail_studio, wellness_center, multi_chain
+  taxId           String?  // National Tax Number / CNIC
+  registrationNo  String?
+
+  // Purchase & Billing
+  purchaseType    String   @default("subscription") // subscription, one_time
+  status          String   @default("active") // active, suspended, cancelled, trial
+  planName        String?  // Starter, Professional, Enterprise
+  billingCycle    String?  // monthly, quarterly, semi_annual, annual
+  currency        String   @default("PKR")
+
+  // Tenant Database
+  tenantDbPath    String?  // Path to tenant's SQLite database
+  tenantDbStatus  String   @default("pending") // pending, creating, active, error
+
+  // Timestamps
+  onboardedAt     DateTime @default(now())
+  lastActiveAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  modules         OwnerClientModule[]
+  serialKeys      SerialKey[]
+  invoices        OwnerInvoice[]
+  quotations      OwnerQuotation[]
+  subscriptions   OwnerClientSubscription[]
+  users           OwnerClientUser[]
+  tenantDatabases TenantDatabase[]
+
+  @@index([status])
+  @@index([purchaseType])
+  @@index([email])
+}
+
+// Module Access per Client
+model OwnerClientModule {
+  id          String   @id @default(cuid())
+  clientId    String
+  moduleKey   String   // dashboard, appointments, customers, etc.
+  moduleName  String   // Display name
+  isActive    Boolean  @default(true)
+  includedAt  DateTime @default(now())
+
+  client      OwnerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, moduleKey])
+  @@index([clientId])
+}
+
+// Serial Keys / License Keys
+model SerialKey {
+  id          String   @id @default(cuid())
+  clientId    String?
+  key         String   @unique
+  type        String   @default("subscription") // subscription, one_time, trial, addon
+  status      String   @default("available") // available, assigned, activated, expired, revoked
+  maxDevices  Int      @default(1)
+  activeDevices Int    @default(0)
+  validFrom   DateTime?
+  validUntil  DateTime?
+  activatedAt DateTime?
+  revokedAt   DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      OwnerClient? @relation(fields: [clientId], references: [id])
+
+  @@index([key])
+  @@index([status])
+  @@index([clientId])
+}
+
+// Owner Invoices (sent to ERP clients)
+model OwnerInvoice {
+  id              String   @id @default(cuid())
+  clientId        String
+  invoiceNumber   String   @unique
+  issueDate       DateTime @default(now())
+  dueDate         DateTime
+  subtotal        Float
+  taxRate         Float    @default(0)
+  taxAmount       Float    @default(0)
+  discountRate    Float    @default(0)
+  discountAmount  Float    @default(0)
+  totalAmount     Float
+  paidAmount      Float    @default(0)
+  currency        String   @default("PKR")
+  paymentStatus   String   @default("unpaid") // unpaid, partial, paid, overdue, cancelled
+  paymentMethod   String?  // bank_transfer, cheque, online, cash
+  paymentRef      String?
+  paidAt          DateTime?
+  notes           String?
+  terms           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client          OwnerClient @relation(fields: [clientId], references: [id])
+  items           OwnerInvoiceItem[]
+
+  @@index([clientId])
+  @@index([paymentStatus])
+  @@index([invoiceNumber])
+}
+
+// Owner Invoice Items
+model OwnerInvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  itemType    String   // subscription, module, setup_fee, customization, support, training, other
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float
+  discount    Float    @default(0)
+  total       Float
+
+  invoice     OwnerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+// Owner Quotations (sent to ERP clients)
+model OwnerQuotation {
+  id              String   @id @default(cuid())
+  clientId        String
+  quotationNumber String   @unique
+  subject         String?
+  issueDate       DateTime @default(now())
+  validUntil      DateTime
+  subtotal        Float
+  taxRate         Float    @default(0)
+  taxAmount       Float    @default(0)
+  discountRate    Float    @default(0)
+  discountAmount  Float    @default(0)
+  totalAmount     Float
+  currency        String   @default("PKR")
+  status          String   @default("draft") // draft, sent, viewed, accepted, rejected, expired, converted
+  notes           String?
+  terms           String?
+  internalNotes   String?
+  convertedInvoiceId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client          OwnerClient @relation(fields: [clientId], references: [id])
+  items           OwnerQuotationItem[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([quotationNumber])
+}
+
+// Owner Quotation Items
+model OwnerQuotationItem {
+  id          String   @id @default(cuid())
+  quotationId String
+  itemType    String   // subscription, module, setup_fee, customization, support, training, other
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float
+  discount    Float    @default(0)
+  total       Float
+
+  quotation   OwnerQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+}
+
+// Client Subscriptions
+model OwnerClientSubscription {
+  id            String   @id @default(cuid())
+  clientId      String
+  planName      String
+  price         Float
+  billingCycle  String   // monthly, quarterly, semi_annual, annual
+  startDate     DateTime
+  endDate       DateTime
+  status        String   @default("active") // active, expired, cancelled, paused, trial
+  autoRenew     Boolean  @default(true)
+  nextBillingDate DateTime?
+  cancelledAt   DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  client        OwnerClient @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+  @@index([status])
+}
+
+// Client Users (admin users for each client)
+model OwnerClientUser {
+  id          String   @id @default(cuid())
+  clientId    String
+  name        String
+  email       String
+  phone       String?
+  role        String   @default("admin") // admin, manager, viewer
+  password    String?  // Hashed password
+  status      String   @default("active") // active, inactive, locked
+  lastLoginAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      OwnerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, email])
+  @@index([clientId])
+  @@index([email])
+}
+
+// Tenant Databases
+model TenantDatabase {
+  id          String   @id @default(cuid())
+  clientId    String
+  dbPath      String
+  dbSize      Float    @default(0) // in MB
+  status      String   @default("pending") // pending, creating, active, migrating, error
+  schemaVersion String @default("1.0")
+  lastMigrated DateTime?
+  errorLog    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client      OwnerClient @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+  @@index([status])
+}

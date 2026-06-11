@@ -23,6 +23,7 @@ export type SalonModule =
   | 'scheduling'
   | 'commissions'
   | 'waitlist'
+  | 'owner'
 
 interface SalonStore {
   activeModule: SalonModule
