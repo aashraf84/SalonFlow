@@ -1,0 +1,627 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useMemo } from 'react'
+     4→     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→     5→import { cn } from '@/lib/utils'
+     6→     6→import { Button } from '@/components/ui/button'
+     7→     7→import { Input } from '@/components/ui/input'
+     8→     8→import { Label } from '@/components/ui/label'
+     9→     9→import {
+    10→    10→  Lock, Key, Eye, EyeOff, ArrowRight, Sparkles, Shield,
+    11→    11→  CheckCircle2, AlertCircle, Loader2, User, Fingerprint,
+    12→    12→  Monitor, Zap, Globe, ChevronRight, Clock, Sun, Moon
+    13→    13→} from 'lucide-react'
+    14→    14→import { toast } from 'sonner'
+    15→    15→
+    16→    16→// ─── Device Fingerprint Generator ────────────────────────────────────────────
+    17→    17→function generateDeviceId(): string {
+    18→    18→  if (typeof window === 'undefined') return ''
+    19→    19→  const canvas = document.createElement('canvas')
+    20→    20→  const ctx = canvas.getContext('2d')
+    21→    21→  if (ctx) {
+    22→    22→    ctx.textBaseline = 'top'
+    23→    23→    ctx.font = '14px Arial'
+    24→    24→    ctx.fillText('SalonFlow-Device-Fingerprint', 2, 2)
+    25→    25→  }
+    26→    26→  const canvasData = canvas.toDataURL()
+    27→    27→  const nav = navigator
+    28→    28→  const screen = window.screen
+    29→    29→  const raw = [
+    30→    30→    nav.userAgent,
+    31→    31→    nav.language,
+    32→    32→    screen.width + 'x' + screen.height,
+    33→    33→    screen.colorDepth,
+    34→    34→    new Date().getTimezoneOffset(),
+    35→    35→    nav.hardwareConcurrency || 'n/a',
+    36→    36→    canvasData.slice(-50),
+    37→    37→  ].join('||')
+    38→    38→  // Simple hash
+    39→    39→  let hash = 0
+    40→    40→  for (let i = 0; i < raw.length; i++) {
+    41→    41→    const char = raw.charCodeAt(i)
+    42→    42→    hash = ((hash << 5) - hash) + char
+    43→    43→    hash = hash & hash
+    44→    44→  }
+    45→    45→  return 'SF-DEV-' + Math.abs(hash).toString(36).toUpperCase() + '-' + Date.now().toString(36).toUpperCase()
+    46→    46→}
+    47→    47→
+    48→    48→// ─── Live Clock Component ────────────────────────────────────────────────────
+    49→    49→function LiveClock() {
+    50→    50→  const [time, setTime] = useState(new Date())
+    51→    51→
+    52→    52→  useEffect(() => {
+    53→    53→    const interval = setInterval(() => setTime(new Date()), 1000)
+    54→    54→    return () => clearInterval(interval)
+    55→    55→  }, [])
+    56→    56→
+    57→    57→  const timeStr = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+    58→    58→  const dateStr = time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    59→    59→
+    60→    60→  return (
+    61→    61→    <motion.div
+    62→    62→      initial={{ opacity: 0, y: -20 }}
+    63→    63→      animate={{ opacity: 1, y: 0 }}
+    64→    64→      transition={{ delay: 0.2, duration: 0.8 }}
+    65→    65→      className="text-center mb-8 select-none"
+    66→    66→    >
+    67→    67→      <p className="text-7xl sm:text-8xl font-extralight text-white tracking-tight drop-shadow-2xl" style={{ fontFeatureSettings: '"tnum"' }}>
+    68→    68→        {timeStr}
+    69→    69→      </p>
+    70→    70→      <p className="text-lg sm:text-xl font-light text-white/70 mt-1 tracking-wide">
+    71→    71→        {dateStr}
+    72→    72→      </p>
+    73→    73→    </motion.div>
+    74→    74→  )
+    75→    75→}
+    76→    76→
+    77→    77→// ─── Main Login Page ─────────────────────────────────────────────────────────
+    78→    78→interface LoginPageProps {
+    79→    79→  onLogin: (user: { id: string; email: string; name: string; role: string; avatar?: string; phone?: string; token: string }) => void
+    80→    80→}
+    81→    81→
+    82→    82→export function LoginPage({ onLogin }: LoginPageProps) {
+    83→    83→  // Activation state
+    84→    84→  const [phase, setPhase] = useState<'loading' | 'activate' | 'login' | 'activating' | 'logging-in'>('loading')
+    85→    85→  const [deviceId, setDeviceId] = useState('')
+    86→    86→  const [serialKey, setSerialKey] = useState('')
+    87→    87→  const [activationError, setActivationError] = useState('')
+    88→    88→  const [isDeviceActivated, setIsDeviceActivated] = useState(false)
+    89→    89→
+    90→    90→  // Login state
+    91→    91→  const [email, setEmail] = useState('')
+    92→    92→  const [password, setPassword] = useState('')
+    93→    93→  const [showPassword, setShowPassword] = useState(false)
+    94→    94→  const [loginError, setLoginError] = useState('')
+    95→    95→  const [rememberMe, setRememberMe] = useState(false)
+    96→    96→
+    97→    97→  // Demo login animation
+    98→    98→  const [demoTyping, setDemoTyping] = useState(false)
+    99→    99→  const [demoStep, setDemoStep] = useState(0)
+   100→   100→
+   101→   101→  // ─── Initialize ───────────────────────────────────────────────────────────
+   102→   102→  useEffect(() => {
+   103→   103→    const init = async () => {
+   104→   104→      // Get or create device ID
+   105→   105→      let storedDeviceId = localStorage.getItem('salonflow_device_id')
+   106→   106→      if (!storedDeviceId) {
+   107→   107→        storedDeviceId = generateDeviceId()
+   108→   108→        localStorage.setItem('salonflow_device_id', storedDeviceId)
+   109→   109→      }
+   110→   110→      setDeviceId(storedDeviceId)
+   111→   111→
+   112→   112→      // Check if device is already activated
+   113→   113→      try {
+   114→   114→        const res = await fetch(`/api/auth/activate?deviceId=${encodeURIComponent(storedDeviceId)}`)
+   115→   115→        const json = await res.json()
+   116→   116→        if (json.success && json.data?.activated) {
+   117→   117→          setIsDeviceActivated(true)
+   118→   118→          setPhase('login')
+   119→   119→        } else {
+   120→   120→          setPhase('activate')
+   121→   121→        }
+   122→   122→      } catch {
+   123→   123→        setPhase('activate')
+   124→   124→      }
+   125→   125→
+   126→   126→      // Seed demo data on first load
+   127→   127→      try {
+   128→   128→        await fetch('/api/auth/seed', { method: 'GET' })
+   129→   129→      } catch { /* ignore */ }
+   130→   130→    }
+   131→   131→    init()
+   132→   132→  }, [])
+   133→   133→
+   134→   134→  // ─── Handle Serial Key Activation ────────────────────────────────────────
+   135→   135→  const handleActivate = async () => {
+   136→   136→    if (!serialKey.trim()) {
+   137→   137→      setActivationError('Please enter a serial key')
+   138→   138→      return
+   139→   139→    }
+   140→   140→
+   141→   141→    setPhase('activating')
+   142→   142→    setActivationError('')
+   143→   143→
+   144→   144→    try {
+   145→   145→      const res = await fetch('/api/auth/activate', {
+   146→   146→        method: 'POST',
+   147→   147→        headers: { 'Content-Type': 'application/json' },
+   148→   148→        body: JSON.stringify({
+   149→   149→          deviceId,
+   150→   150→          serialKey: serialKey.trim().toUpperCase(),
+   151→   151→          deviceName: navigator.userAgent.split(' ').slice(-1)[0] || 'Unknown',
+   152→   152→          browserInfo: navigator.userAgent.substring(0, 100),
+   153→   153→        }),
+   154→   154→      })
+   155→   155→      const json = await res.json()
+   156→   156→
+   157→   157→      if (json.success) {
+   158→   158→        toast.success('Device activated successfully!')
+   159→   159→        setIsDeviceActivated(true)
+   160→   160→        setTimeout(() => setPhase('login'), 500)
+   161→   161→      } else {
+   162→   162→        setActivationError(json.error || 'Activation failed')
+   163→   163→        setPhase('activate')
+   164→   164→      }
+   165→   165→    } catch {
+   166→   166→      setActivationError('Connection error. Please try again.')
+   167→   167→      setPhase('activate')
+   168→   168→    }
+   169→   169→  }
+   170→   170→
+   171→   171→  // ─── Handle Login ─────────────────────────────────────────────────────────
+   172→   172→  const handleLogin = async () => {
+   173→   173→    if (!email.trim() || !password.trim()) {
+   174→   174→      setLoginError('Please enter email and password')
+   175→   175→      return
+   176→   176→    }
+   177→   177→
+   178→   178→    setPhase('logging-in')
+   179→   179→    setLoginError('')
+   180→   180→
+   181→   181→    try {
+   182→   182→      const res = await fetch('/api/auth/login', {
+   183→   183→        method: 'POST',
+   184→   184→        headers: { 'Content-Type': 'application/json' },
+   185→   185→        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+   186→   186→      })
+   187→   187→      const json = await res.json()
+   188→   188→
+   189→   189→      if (json.success) {
+   190→   190→        localStorage.setItem('salonflow_token', json.data.token)
+   191→   191→        toast.success(`Welcome back, ${json.data.name}!`)
+   192→   192→        onLogin(json.data)
+   193→   193→      } else {
+   194→   194→        setLoginError(json.error || 'Login failed')
+   195→   195→        setPhase('login')
+   196→   196→      }
+   197→   197→    } catch {
+   198→   198→      setLoginError('Connection error. Please try again.')
+   199→   199→      setPhase('login')
+   200→   200→    }
+   201→   201→  }
+   202→   202→
+   203→   203→  // ─── Handle Demo Login ────────────────────────────────────────────────────
+   204→   204→  const handleDemoLogin = async () => {
+   205→   205→    setDemoTyping(true)
+   206→   206→    setDemoStep(1)
+   207→   207→    setEmail('demo@salonflow.pk')
+   208→   208→
+   209→   209→    await new Promise(r => setTimeout(r, 300))
+   210→   210→    setDemoStep(2)
+   211→   211→    setPassword('demo123')
+   212→   212→
+   213→   213→    await new Promise(r => setTimeout(r, 400))
+   214→   214→    setDemoStep(3)
+   215→   215→
+   216→   216→    try {
+   217→   217→      const res = await fetch('/api/auth/demo', { method: 'POST' })
+   218→   218→      const json = await res.json()
+   219→   219→
+   220→   220→      if (json.success) {
+   221→   221→        localStorage.setItem('salonflow_token', json.data.token)
+   222→   222→        toast.success(`Welcome to SalonFlow OS Demo!`)
+   223→   223→        await new Promise(r => setTimeout(r, 300))
+   224→   224→        onLogin(json.data)
+   225→   225→      } else {
+   226→   226→        setLoginError(json.error || 'Demo login failed')
+   227→   227→        setPhase('login')
+   228→   228→      }
+   229→   229→    } catch {
+   230→   230→      setLoginError('Connection error')
+   231→   231→      setPhase('login')
+   232→   232→    }
+   233→   233→    setDemoTyping(false)
+   234→   234→  }
+   235→   235→
+   236→   236→  // ─── Handle Enter Key ─────────────────────────────────────────────────────
+   237→   237→  const handleKeyDown = (e: React.KeyboardEvent, action: 'activate' | 'login') => {
+   238→   238→    if (e.key === 'Enter') {
+   239→   239→      if (action === 'activate') handleActivate()
+   240→   240→      else handleLogin()
+   241→   241→    }
+   242→   242→  }
+   243→   243→
+   244→   244→  return (
+   245→   245→    <div className="fixed inset-0 z-50 overflow-hidden">
+   246→   246→      {/* ─── Background ──────────────────────────────────────────────────────── */}
+   247→   247→      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-rose-950 to-slate-900" />
+   248→   248→
+   249→   249→      {/* ─── Content ─────────────────────────────────────────────────────────── */}
+   250→   250→      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4">
+   251→   251→        {/* Clock */}
+   252→   252→        <LiveClock />
+   253→   253→
+   254→   254→        {/* Main Content Area */}
+   255→   255→        <AnimatePresence mode="wait">
+   256→   256→          {phase === 'loading' ? (
+   257→   257→            <motion.div
+   258→   258→              key="loading"
+   259→   259→              initial={{ opacity: 0 }}
+   260→   260→              animate={{ opacity: 1 }}
+   261→   261→              exit={{ opacity: 0 }}
+   262→   262→              className="flex flex-col items-center gap-4"
+   263→   263→            >
+   264→   264→              <Loader2 className="size-8 text-white/60 animate-spin" />
+   265→   265→            </motion.div>
+   266→   266→          ) : phase === 'activate' || phase === 'activating' ? (
+   267→   267→            /* ═══ SERIAL KEY ACTIVATION ═════════════════════════════════════════ */
+   268→   268→            <motion.div
+   269→   269→              key="activate"
+   270→   270→              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+   271→   271→              animate={{ opacity: 1, y: 0, scale: 1 }}
+   272→   272→              exit={{ opacity: 0, y: -30, scale: 0.95 }}
+   273→   273→              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+   274→   274→              className="w-full max-w-md"
+   275→   275→            >
+   276→   276→              <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 shadow-2xl shadow-black/20">
+   277→   277→                {/* Icon */}
+   278→   278→                <motion.div
+   279→   279→                  initial={{ scale: 0 }}
+   280→   280→                  animate={{ scale: 1 }}
+   281→   281→                  transition={{ type: 'spring', stiffness: 300, damping: 15, delay: 0.2 }}
+   282→   282→                  className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-rose-500/30 to-pink-600/30 border border-white/20 mx-auto mb-6"
+   283→   283→                >
+   284→   284→                  <Shield className="size-10 text-white drop-shadow-lg" />
+   285→   285→                </motion.div>
+   286→   286→
+   287→   287→                {/* Title */}
+   288→   288→                <div className="text-center mb-6">
+   289→   289→                  <h1 className="text-2xl font-bold text-white mb-2">Activate Your Device</h1>
+   290→   290→                  <p className="text-sm text-white/60 leading-relaxed">
+   291→   291→                    This device needs to be activated with a valid serial key before you can access SalonFlow OS.
+   292→   292→                  </p>
+   293→   293→                </div>
+   294→   294→
+   295→   295→                {/* Serial Key Input */}
+   296→   296→                <div className="space-y-4">
+   297→   297→                  <div className="relative">
+   298→   298→                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-white/40" />
+   299→   299→                    <Input
+   300→   300→                      placeholder="Enter Serial Key (e.g. SALONFLOW-PRO-2024-LICENSE)"
+   301→   301→                      className="pl-11 h-12 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20"
+   302→   302→                      value={serialKey}
+   303→   303→                      onChange={e => setSerialKey(e.target.value.toUpperCase())}
+   304→   304→                      onKeyDown={e => handleKeyDown(e, 'activate')}
+   305→   305→                      disabled={phase === 'activating'}
+   306→   306→                    />
+   307→   307→                  </div>
+   308→   308→
+   309→   309→                  {activationError && (
+   310→   310→                    <motion.div
+   311→   311→                      initial={{ opacity: 0, y: -5 }}
+   312→   312→                      animate={{ opacity: 1, y: 0 }}
+   313→   313→                      className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20"
+   314→   314→                    >
+   315→   315→                      <AlertCircle className="size-4 text-red-400 shrink-0" />
+   316→   316→                      <span className="text-xs text-red-300">{activationError}</span>
+   317→   317→                    </motion.div>
+   318→   318→                  )}
+   319→   319→
+   320→   320→                  <Button
+   321→   321→                    className="w-full h-12 text-sm font-semibold rounded-xl gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/30 disabled:opacity-50"
+   322→   322→                    onClick={handleActivate}
+   323→   323→                    disabled={phase === 'activating' || !serialKey.trim()}
+   324→   324→                  >
+   325→   325→                    {phase === 'activating' ? (
+   326→   326→                      <>
+   327→   327→                        <Loader2 className="size-4 animate-spin" />
+   328→   328→                        Activating Device...
+   329→   329→                      </>
+   330→   330→                    ) : (
+   331→   331→                      <>
+   332→   332→                        <Zap className="size-4" />
+   333→   333→                        Activate Device
+   334→   334→                      </>
+   335→   335→                    )}
+   336→   336→                  </Button>
+   337→   337→                </div>
+   338→   338→
+   339→   339→                {/* Device Info */}
+   340→   340→                <div className="mt-6 pt-4 border-t border-white/10">
+   341→   341→                  <div className="flex items-center gap-2 text-white/30">
+   342→   342→                    <Monitor className="size-3" />
+   343→   343→                    <span className="text-[10px] font-mono truncate">Device: {deviceId.slice(0, 25)}...</span>
+   344→   344→                  </div>
+   345→   345→                </div>
+   346→   346→              </div>
+   347→   347→            </motion.div>
+   348→   348→          ) : (
+   349→   349→            /* ═══ LOGIN SCREEN ═══════════════════════════════════════════════════ */
+   350→   350→            <motion.div
+   351→   351→              key="login"
+   352→   352→              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+   353→   353→              animate={{ opacity: 1, y: 0, scale: 1 }}
+   354→   354→              exit={{ opacity: 0, y: -30, scale: 0.95 }}
+   355→   355→              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+   356→   356→              className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-8 lg:gap-16"
+   357→   357→            >
+   358→   358→              {/* ─── LEFT: Login Form ──────────────────────────────────────────── */}
+   359→   359→              <div className="w-full max-w-sm">
+   360→   360→                {/* User Avatar */}
+   361→   361→                <motion.div
+   362→   362→                  initial={{ scale: 0 }}
+   363→   363→                  animate={{ scale: 1 }}
+   364→   364→                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+   365→   365→                  className="flex flex-col items-center mb-8"
+   366→   366→                >
+   367→   367→                  <div className="relative">
+   368→   368→                    <div className="flex size-24 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-600 shadow-2xl shadow-rose-500/30 ring-4 ring-white/20">
+   369→   369→                      <User className="size-12 text-white" />
+   370→   370→                    </div>
+   371→   371→                    <div className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white/20">
+   372→   372→                      <CheckCircle2 className="size-4 text-white" />
+   373→   373→                    </div>
+   374→   374→                  </div>
+   375→   375→                  <h2 className="text-xl font-semibold text-white mt-4">SalonFlow OS</h2>
+   376→   376→                  <p className="text-xs text-white/50 mt-1">Beauty & Spa Management System</p>
+   377→   377→                </motion.div>
+   378→   378→
+   379→   379→                {/* Login Card */}
+   380→   380→                <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl p-6 shadow-2xl shadow-black/20">
+   381→   381→                  {/* Email */}
+   382→   382→                  <div className="space-y-1.5 mb-4">
+   383→   383→                    <Label className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Email</Label>
+   384→   384→                    <div className="relative">
+   385→   385→                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-white/30" />
+   386→   386→                      <Input
+   387→   387→                        placeholder="Enter your email"
+   388→   388→                        type="email"
+   389→   389→                        className={cn(
+   390→   390→                          'pl-10 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/25 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20',
+   391→   391→                          demoTyping && demoStep >= 1 && 'border-rose-400/50'
+   392→   392→                        )}
+   393→   393→                        value={email}
+   394→   394→                        onChange={e => setEmail(e.target.value)}
+   395→   395→                        onKeyDown={e => handleKeyDown(e, 'login')}
+   396→   396→                        disabled={phase === 'logging-in'}
+   397→   397→                      />
+   398→   398→                    </div>
+   399→   399→                  </div>
+   400→   400→
+   401→   401→                  {/* Password */}
+   402→   402→                  <div className="space-y-1.5 mb-4">
+   403→   403→                    <Label className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Password</Label>
+   404→   404→                    <div className="relative">
+   405→   405→                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-white/30" />
+   406→   406→                      <Input
+   407→   407→                        placeholder="Enter your password"
+   408→   408→                        type={showPassword ? 'text' : 'password'}
+   409→   409→                        className={cn(
+   410→   410→                          'pl-10 pr-10 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/25 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20',
+   411→   411→                          demoTyping && demoStep >= 2 && 'border-rose-400/50'
+   412→   412→                        )}
+   413→   413→                        value={password}
+   414→   414→                        onChange={e => setPassword(e.target.value)}
+   415→   415→                        onKeyDown={e => handleKeyDown(e, 'login')}
+   416→   416→                        disabled={phase === 'logging-in'}
+   417→   417→                      />
+   418→   418→                      <button
+   419→   419→                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+   420→   420→                        onClick={() => setShowPassword(!showPassword)}
+   421→   421→                        type="button"
+   422→   422→                      >
+   423→   423→                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+   424→   424→                      </button>
+   425→   425→                    </div>
+   426→   426→                  </div>
+   427→   427→
+   428→   428→                  {/* Remember Me */}
+   429→   429→                  <div className="flex items-center justify-between mb-5">
+   430→   430→                    <button
+   431→   431→                      className="flex items-center gap-2 group"
+   432→   432→                      onClick={() => setRememberMe(!rememberMe)}
+   433→   433→                      type="button"
+   434→   434→                    >
+   435→   435→                      <div className={cn(
+   436→   436→                        'flex size-4 items-center justify-center rounded border transition-all',
+   437→   437→                        rememberMe ? 'bg-rose-500 border-rose-500' : 'border-white/20 group-hover:border-white/40'
+   438→   438→                      )}>
+   439→   439→                        {rememberMe && <CheckCircle2 className="size-3 text-white" />}
+   440→   440→                      </div>
+   441→   441→                      <span className="text-[11px] text-white/40 group-hover:text-white/60 transition-colors">Remember me</span>
+   442→   442→                    </button>
+   443→   443→                    <button className="text-[11px] text-rose-300/60 hover:text-rose-300 transition-colors" type="button">
+   444→   444→                      Forgot password?
+   445→   445→                    </button>
+   446→   446→                  </div>
+   447→   447→
+   448→   448→                  {/* Login Error */}
+   449→   449→                  {loginError && (
+   450→   450→                    <motion.div
+   451→   451→                      initial={{ opacity: 0, y: -5 }}
+   452→   452→                      animate={{ opacity: 1, y: 0 }}
+   453→   453→                      className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-4"
+   454→   454→                    >
+   455→   455→                      <AlertCircle className="size-4 text-red-400 shrink-0" />
+   456→   456→                      <span className="text-xs text-red-300">{loginError}</span>
+   457→   457→                    </motion.div>
+   458→   458→                  )}
+   459→   459→
+   460→   460→                  {/* Login Button */}
+   461→   461→                  <Button
+   462→   462→                    className="w-full h-11 text-sm font-semibold rounded-xl gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/30 disabled:opacity-50"
+   463→   463→                    onClick={handleLogin}
+   464→   464→                    disabled={phase === 'logging-in' || !email.trim() || !password.trim()}
+   465→   465→                  >
+   466→   466→                    {phase === 'logging-in' ? (
+   467→   467→                      <>
+   468→   468→                        <Loader2 className="size-4 animate-spin" />
+   469→   469→                        Signing In...
+   470→   470→                      </>
+   471→   471→                    ) : (
+   472→   472→                      <>
+   473→   473→                        Sign In
+   474→   474→                        <ArrowRight className="size-4" />
+   475→   475→                      </>
+   476→   476→                    )}
+   477→   477→                  </Button>
+   478→   478→                </div>
+   479→   479→
+   480→   480→                {/* Activation status */}
+   481→   481→                {isDeviceActivated && (
+   482→   482→                  <motion.div
+   483→   483→                    initial={{ opacity: 0 }}
+   484→   484→                    animate={{ opacity: 1 }}
+   485→   485→                    transition={{ delay: 0.5 }}
+   486→   486→                    className="flex items-center justify-center gap-1.5 mt-3 text-white/20"
+   487→   487→                  >
+   488→   488→                    <Shield className="size-3" />
+   489→   489→                    <span className="text-[10px]">Device Activated</span>
+   490→   490→                    <CheckCircle2 className="size-2.5 text-emerald-400/60" />
+   491→   491→                  </motion.div>
+   492→   492→                )}
+   493→   493→              </div>
+   494→   494→
+   495→   495→              {/* ─── RIGHT: Demo Login Card ────────────────────────────────────── */}
+   496→   496→              <motion.div
+   497→   497→                initial={{ opacity: 0, x: 30 }}
+   498→   498→                animate={{ opacity: 1, x: 0 }}
+   499→   499→                transition={{ delay: 0.4, duration: 0.6 }}
+   500→   500→                className="w-full max-w-xs"
+   501→   501→              >
+   502→   502→                <div className="bg-white/10 backdrop-blur-2xl border border-white/15 rounded-2xl p-6 shadow-2xl shadow-black/20 relative overflow-hidden">
+   503→   503→                  {/* Decorative glow */}
+   504→   504→                  <div className="absolute -top-20 -right-20 size-40 bg-rose-500/20 rounded-full blur-3xl" />
+   505→   505→                  <div className="absolute -bottom-20 -left-20 size-40 bg-pink-500/20 rounded-full blur-3xl" />
+   506→   506→
+   507→   507→                  <div className="relative">
+   508→   508→                    {/* Demo Badge */}
+   509→   509→                    <div className="flex items-center gap-2 mb-4">
+   510→   510→                      <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/20">
+   511→   511→                        <Sparkles className="size-4 text-white" />
+   512→   512→                      </div>
+   513→   513→                      <div>
+   514→   514→                        <p className="text-xs font-bold text-white">Demo Access</p>
+   515→   515→                        <p className="text-[10px] text-white/30">Try SalonFlow OS</p>
+   516→   516→                      </div>
+   517→   517→                    </div>
+   518→   518→
+   519→   519→                    <p className="text-xs text-white/40 leading-relaxed mb-4">
+   520→   520→                      Click below to auto-fill demo credentials and explore all features of SalonFlow OS with sample data.
+   521→   521→                    </p>
+   522→   522→
+   523→   523→                    {/* Demo Credentials Preview */}
+   524→   524→                    <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-4 space-y-2">
+   525→   525→                      <div className="flex items-center gap-2">
+   526→   526→                        <User className="size-3 text-white/30" />
+   527→   527→                        <span className="text-[10px] text-white/30">Email</span>
+   528→   528→                      </div>
+   529→   529→                      <p className={cn(
+   530→   530→                        'text-xs font-mono transition-colors duration-300',
+   531→   531→                        demoTyping && demoStep >= 1 ? 'text-rose-300' : 'text-white/20'
+   532→   532→                      )}>
+   533→   533→                        {demoTyping && demoStep >= 1 ? 'demo@salonflow.pk' : '••••••••••••'}
+   534→   534→                      </p>
+   535→   535→                      <div className="flex items-center gap-2 mt-2">
+   536→   536→                        <Lock className="size-3 text-white/30" />
+   537→   537→                        <span className="text-[10px] text-white/30">Password</span>
+   538→   538→                      </div>
+   539→   539→                      <p className={cn(
+   540→   540→                        'text-xs font-mono transition-colors duration-300',
+   541→   541→                        demoTyping && demoStep >= 2 ? 'text-rose-300' : 'text-white/20'
+   542→   542→                      )}>
+   543→   543→                        {demoTyping && demoStep >= 2 ? '••••••' : '••••••'}
+   544→   544→                      </p>
+   545→   545→                    </div>
+   546→   546→
+   547→   547→                    {/* Demo Login Button */}
+   548→   548→                    <Button
+   549→   549→                      className="w-full h-11 text-sm font-semibold rounded-xl gap-2 bg-white/15 hover:bg-white/25 text-white border border-white/20 hover:border-white/30 shadow-lg disabled:opacity-50 transition-all duration-200"
+   550→   550→                      onClick={handleDemoLogin}
+   551→   551→                      disabled={demoTyping || phase === 'logging-in'}
+   552→   552→                    >
+   553→   553→                      {demoTyping ? (
+   554→   554→                        <>
+   555→   555→                          <Loader2 className="size-4 animate-spin" />
+   556→   556→                          Signing In...
+   557→   557→                        </>
+   558→   558→                      ) : (
+   559→   559→                        <>
+   560→   560→                          <Zap className="size-4" />
+   561→   561→                          Demo Login
+   562→   562→                          <ChevronRight className="size-3 opacity-50" />
+   563→   563→                        </>
+   564→   564→                      )}
+   565→   565→                    </Button>
+   566→   566→
+   567→   567→                    {/* Info */}
+   568→   568→                    <div className="flex items-start gap-2 mt-3">
+   569→   569→                      <Globe className="size-3 text-white/20 shrink-0 mt-0.5" />
+   570→   570→                      <p className="text-[9px] text-white/20 leading-relaxed">
+   571→   571→                        Demo account with full admin access. All features available. Data resets periodically.
+   572→   572→                      </p>
+   573→   573→                    </div>
+   574→   574→                  </div>
+   575→   575→                </div>
+   576→   576→
+   577→   577→                {/* Additional Info Cards */}
+   578→   578→                <motion.div
+   579→   579→                  initial={{ opacity: 0, y: 10 }}
+   580→   580→                  animate={{ opacity: 1, y: 0 }}
+   581→   581→                  transition={{ delay: 0.6 }}
+   582→   582→                  className="mt-4 space-y-2"
+   583→   583→                >
+   584→   584→                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-3 flex items-center gap-3">
+   585→   585→                    <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 shrink-0">
+   586→   586→                      <Shield className="size-4" />
+   587→   587→                    </div>
+   588→   588→                    <div>
+   589→   589→                      <p className="text-[10px] font-semibold text-white/60">Enterprise Security</p>
+   590→   590→                      <p className="text-[9px] text-white/25">Encrypted & Device-Locked</p>
+   591→   591→                    </div>
+   592→   592→                  </div>
+   593→   593→                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-3 flex items-center gap-3">
+   594→   594→                    <div className="flex size-8 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
+   595→   595→                      <Fingerprint className="size-4" />
+   596→   596→                    </div>
+   597→   597→                    <div>
+   598→   598→                      <p className="text-[10px] font-semibold text-white/60">Device Binding</p>
+   599→   599→                      <p className="text-[9px] text-white/25">Serial Key Activation</p>
+   600→   600→                    </div>
+   601→   601→                  </div>
+   602→   602→                </motion.div>
+   603→   603→              </motion.div>
+   604→   604→            </motion.div>
+   605→   605→          )}
+   606→   606→        </AnimatePresence>
+   607→   607→
+   608→   608→        {/* Footer */}
+   609→   609→        <motion.div
+   610→   610→          initial={{ opacity: 0 }}
+   611→   611→          animate={{ opacity: 1 }}
+   612→   612→          transition={{ delay: 1 }}
+   613→   613→          className="absolute bottom-6 left-0 right-0 flex justify-center"
+   614→   614→        >
+   615→   615→          <div className="flex items-center gap-4 text-white/20 text-[10px]">
+   616→   616→            <span>SalonFlow OS v2.0</span>
+   617→   617→            <span>·</span>
+   618→   618→            <span>Enterprise Edition</span>
+   619→   619→            <span>·</span>
+   620→   620→            <span>Powered by ApexFlow</span>
+   621→   621→          </div>
+   622→   622→        </motion.div>
+   623→   623→      </div>
+   624→   624→    </div>
+   625→   625→  )
+   626→   626→}
+   627→   627→
