@@ -267,3 +267,44 @@ Stage Summary:
 - Re-activation no longer fails with unique constraint error
 - Seed runs before activation check to ensure serial keys exist
 - All flows verified with agent-browser
+
+---
+Task ID: 5
+Agent: Main
+Task: Build enterprise-level Sales Reports module with item-wise, category-wise, gross profit, cost-wise, retail-wise, and salesperson-wise reports
+
+Work Log:
+- Reviewed existing reports module (10 report types: revenue, appointments, staff, customers, inventory, financial, loyalty, membership, payroll, tax) - NO dedicated sales reports existed
+- Reviewed data models: Invoice, InvoiceItem, Product, ProductCategory, Service, ServiceCategory, Staff, Branch, Customer
+- Created comprehensive Sales Reports API at `/src/app/api/sales-reports/route.ts` (1342 lines) with 7 report types:
+  1. **sales-summary** - Dashboard overview: Total Sales, Net Sales, Gross Profit, GP Margin, AOV, Daily/Monthly trends, Top 10 items, Payment breakdown
+  2. **sales-item** - Item-wise: Grouped by name+itemType, Qty Sold, Revenue, % of Sales, Top/Bottom performers, filter by itemType
+  3. **sales-category** - Category-wise: Service and Product category breakdown, revenue, avg price, margin analysis, pie chart data
+  4. **sales-gross-profit** - Gross Profit: Revenue by type, COGS, GP margins, monthly GP trend, product-level GP breakdown with color-coded margins
+  5. **sales-cost** - Cost Analysis: COGS by category, cost vs selling price, markup %, margin analysis, monthly cost trend, break-even data
+  6. **sales-retail** - Retail Product Sales: Product-only with SKU/brand, sales by brand/category, top vs slow movers, retail vs service comparison
+  7. **sales-salesperson** - Salesperson-wise: Staff-attributed sales, service/product breakdown, commission calculations, top performers, monthly trends, branch-level analysis
+- Created enterprise-level frontend component at `/src/components/salon/sales-reports.tsx` (1622 lines) with:
+  - 7 tabs matching API report types
+  - Date range picker (from/to) + Branch filter at the top
+  - Summary metric cards (AnimatedMetricCard with glass morphism)
+  - Rich Recharts visualizations (AreaChart, BarChart, PieChart, LineChart, stacked bars)
+  - Detailed data tables with proper alignment and formatting
+  - Color-coded margins: green (>60%), amber (30-60%), red (<30%)
+  - Export CSV and Print buttons on each tab
+  - Framer Motion animations on cards and tab transitions
+  - PKR currency formatting throughout
+  - Rank badges (🥇🥈🥉) for top salespersons
+- Updated salon-store.ts: Added 'sales-reports' to SalonModule type
+- Updated page.tsx: Added dynamic import, moduleConfig entry (Intelligence group), and render switch case
+- ESLint passes with zero errors
+- All 7 API endpoints tested and returning 200 with correct data structures
+- Verified with agent-browser: all 7 tabs render correctly, no console errors
+
+Stage Summary:
+- Complete enterprise-level Sales Reports module built from scratch
+- 7 comprehensive report types: Summary, Item-wise, Category, Gross Profit, Cost Analysis, Retail, Salesperson
+- Backend: 1342-line API with COGS calculations, salesperson attribution, refund exclusion, branch filtering
+- Frontend: 1622-line React component with 7 tabs, rich charts, color-coded margins, export/print
+- All reports use PKR currency formatting consistent with the salon app
+- Module appears in Intelligence group in sidebar under "Sales Reports"
