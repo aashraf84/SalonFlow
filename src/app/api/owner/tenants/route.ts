@@ -1,6 +1,5 @@
-import { db } from '@/lib/db'
+import { db, provisionTenantDatabase } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
-import { execSync } from 'child_process'
 
 // ─── GET: List all tenant databases ─────────────────────────────────────
 export async function GET() {
@@ -31,7 +30,7 @@ export async function GET() {
   }
 }
 
-// ─── POST: Manually trigger tenant DB creation ──────────────────────────
+// ─── POST: Manually trigger tenant DB creation on Neon ────────────────────
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -66,91 +65,54 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Build tenant DB path
-    const tenantDbPath = `/home/z/my-project/db/tenants/${client.slug}.db`
-
-    // Create or update TenantDatabase record
-    let tenantDb = client.tenantDatabases[0]
-    if (tenantDb) {
-      await db.tenantDatabase.update({
-        where: { id: tenantDb.id },
-        data: { status: 'creating' },
-      })
-    } else {
-      tenantDb = await db.tenantDatabase.create({
-        data: {
-          clientId: client.id,
-          dbPath: tenantDbPath,
-          status: 'creating',
-        },
-      })
-    }
-
     // Update client status
     await db.ownerClient.update({
       where: { id: clientId },
       data: { tenantDbStatus: 'creating' },
     })
 
-    // Try to create the tenant database
-    try {
-      execSync('npx prisma db push --skip-generate', {
-        env: {
-          ...process.env,
-          DATABASE_URL: `file:${tenantDbPath}`,
-        },
-        cwd: '/home/z/my-project',
-        stdio: 'pipe',
-        timeout: 60000,
+    // Update existing tenant record or create new
+    const existingTenant = client.tenantDatabases[0]
+    if (existingTenant) {
+      await db.tenantDatabase.update({
+        where: { id: existingTenant.id },
+        data: { status: 'creating' },
       })
+    }
 
-      // Update records to active
-      const updatedTenant = await db.tenantDatabase.update({
-        where: { id: tenantDb.id },
-        data: {
-          status: 'active',
-          lastMigrated: new Date(),
-          errorLog: null,
-        },
-      })
+    // Provision tenant database on Neon
+    const result = await provisionTenantDatabase(clientId, client.slug)
 
+    if (result.success) {
+      // Update client status
       await db.ownerClient.update({
         where: { id: clientId },
         data: {
-          tenantDbPath,
+          tenantDbPath: result.dbName,
           tenantDbStatus: 'active',
         },
+      })
+
+      const updatedTenant = await db.tenantDatabase.findFirst({
+        where: { clientId, status: 'active' },
       })
 
       return NextResponse.json({
         success: true,
         data: updatedTenant,
-        message: 'Tenant database created successfully',
+        message: `Tenant database '${result.dbName}' created on Neon PostgreSQL`,
       })
-    } catch (tenantError) {
-      console.error('[Owner Tenants API] Tenant DB creation failed:', tenantError)
-
-      await db.tenantDatabase.update({
-        where: { id: tenantDb.id },
-        data: {
-          status: 'error',
-          errorLog: tenantError instanceof Error ? tenantError.message : String(tenantError),
-        },
-      })
-
+    } else {
       await db.ownerClient.update({
         where: { id: clientId },
-        data: {
-          tenantDbPath,
-          tenantDbStatus: 'error',
-        },
+        data: { tenantDbStatus: 'error' },
       })
 
       return NextResponse.json(
         {
           success: false,
-          error: 'Failed to create tenant database',
-          details: tenantError instanceof Error ? tenantError.message : String(tenantError),
+          error: 'Failed to create tenant database on Neon',
+          details: result.error,
         },
         { status: 500 },
       )

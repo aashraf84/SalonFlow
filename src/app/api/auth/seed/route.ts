@@ -63,33 +63,31 @@ export async function GET() {
       })
     }
 
-    // Create demo serial key
-    const existingKey = await db.serialKey.findUnique({ where: { key: 'SALON-DEMO-2024-ACTIVATION' } })
-    if (!existingKey) {
-      await db.serialKey.create({
-        data: {
-          key: 'SALON-DEMO-2024-ACTIVATION',
-          type: 'one_time',
-          maxDevices: 999,
-          activeDevices: 0,
-          status: 'available',
-        }
-      })
-    }
+    // Create demo serial key (upsert to avoid unique constraint errors)
+    await db.serialKey.upsert({
+      where: { key: 'SALON-DEMO-2024-ACTIVATION' },
+      update: {},
+      create: {
+        key: 'SALON-DEMO-2024-ACTIVATION',
+        type: 'one_time',
+        maxDevices: 999,
+        activeDevices: 0,
+        status: 'available',
+      }
+    })
 
     // Also create a real serial key for testing
-    const existingKey2 = await db.serialKey.findUnique({ where: { key: 'SALONFLOW-PRO-2024-LICENSE' } })
-    if (!existingKey2) {
-      await db.serialKey.create({
-        data: {
-          key: 'SALONFLOW-PRO-2024-LICENSE',
-          type: 'subscription',
-          maxDevices: 5,
-          activeDevices: 0,
-          status: 'available',
-        }
-      })
-    }
+    await db.serialKey.upsert({
+      where: { key: 'SALONFLOW-PRO-2024-LICENSE' },
+      update: {},
+      create: {
+        key: 'SALONFLOW-PRO-2024-LICENSE',
+        type: 'subscription',
+        maxDevices: 5,
+        activeDevices: 0,
+        status: 'available',
+      }
+    })
 
     return NextResponse.json({
       success: true,

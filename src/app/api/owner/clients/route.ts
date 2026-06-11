@@ -1,6 +1,5 @@
-import { db } from '@/lib/db'
+import { db, provisionTenantDatabase } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
-import { execSync } from 'child_process'
 import crypto from 'crypto'
 
 // ─── Helper: Generate serial key SF-XXXX-XXXX-XXXX-XXXX ──────────────────
@@ -222,17 +221,15 @@ export async function POST(request: NextRequest) {
     })
 
     // ── Create TenantDatabase record ────────────────────────────────────
-    const tenantDbPath = `/home/z/my-project/db/tenants/${finalSlug}.db`
-
     const tenantDb = await db.tenantDatabase.create({
       data: {
         clientId: client.id,
-        dbPath: tenantDbPath,
+        dbName: `pending_${finalSlug}`,
         status: 'pending',
       },
     })
 
-    // ── Auto-create tenant database ─────────────────────────────────────
+    // ── Auto-create tenant database on Neon PostgreSQL ────────────────────
     try {
       // Update status to creating
       await db.ownerClient.update({
@@ -244,39 +241,28 @@ export async function POST(request: NextRequest) {
         data: { status: 'creating' },
       })
 
-      // Run prisma db push with tenant URL
-      execSync('npx prisma db push --skip-generate', {
-        env: {
-          ...process.env,
-          DATABASE_URL: `file:${tenantDbPath}`,
-        },
-        cwd: '/home/z/my-project',
-        stdio: 'pipe',
-        timeout: 60000,
-      })
+      // Provision tenant database on Neon
+      const result = await provisionTenantDatabase(client.id, finalSlug)
 
-      // Update status to active
-      await db.ownerClient.update({
-        where: { id: client.id },
-        data: {
-          tenantDbPath,
-          tenantDbStatus: 'active',
-        },
-      })
-      await db.tenantDatabase.update({
-        where: { id: tenantDb.id },
-        data: {
-          status: 'active',
-          lastMigrated: new Date(),
-        },
-      })
+      if (result.success) {
+        // Update status to active
+        await db.ownerClient.update({
+          where: { id: client.id },
+          data: {
+            tenantDbPath: result.dbName,
+            tenantDbStatus: 'active',
+          },
+        })
+      } else {
+        throw new Error(result.error || 'Unknown provisioning error')
+      }
     } catch (tenantError) {
       console.error('[Owner Clients API] Tenant DB creation failed:', tenantError)
       // Set status to error but don't fail the whole request
       await db.ownerClient.update({
         where: { id: client.id },
         data: {
-          tenantDbPath,
+          tenantDbPath: `failed_${finalSlug}`,
           tenantDbStatus: 'error',
         },
       })

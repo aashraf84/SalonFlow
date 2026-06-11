@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -635,8 +635,8 @@ model OwnerClient {
   billingCycle    String?  // monthly, quarterly, semi_annual, annual
   currency        String   @default("PKR")
 
-  // Tenant Database
-  tenantDbPath    String?  // Path to tenant's SQLite database
+  // Tenant Database (Neon PostgreSQL)
+  tenantDbPath    String?  // Neon database name for tenant
   tenantDbStatus  String   @default("pending") // pending, creating, active, error
 
   // Timestamps
@@ -899,19 +899,21 @@ model DeviceActivation {
 
 // Tenant Databases
 model TenantDatabase {
-  id          String   @id @default(cuid())
-  clientId    String
-  dbPath      String
-  dbSize      Float    @default(0) // in MB
-  status      String   @default("pending") // pending, creating, active, migrating, error
-  schemaVersion String @default("1.0")
-  lastMigrated DateTime?
-  errorLog    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  clientId        String
+  dbName          String   // Neon database name (e.g., tenant_glamour_beauty)
+  connectionString String? // Full connection URL for the tenant DB
+  dbSize          Float    @default(0) // in MB
+  status          String   @default("pending") // pending, creating, active, migrating, error
+  schemaVersion   String   @default("1.0")
+  lastMigrated    DateTime?
+  errorLog        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  client      OwnerClient @relation(fields: [clientId], references: [id])
+  client          OwnerClient @relation(fields: [clientId], references: [id])
 
   @@index([clientId])
   @@index([status])
+  @@index([dbName])
 }
