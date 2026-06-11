@@ -1,6 +1,7 @@
 'use client'
 
 import { useSalonStore, type SalonModule } from '@/store/salon-store'
+import { useAuthStore, type AuthUser } from '@/store/auth-store'
 import dynamic from 'next/dynamic'
 import {
   LayoutDashboard,
@@ -31,14 +32,16 @@ import {
   Coins,
   Timer,
   Shield,
+  LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { LoginPage } from '@/components/salon/login-page'
 
 // Dynamic imports to avoid SSR issues and reduce initial bundle
 const DashboardModule = dynamic(() => import('@/components/salon/dashboard').then(mod => ({ default: mod.DashboardModule })), { ssr: false })
@@ -145,7 +148,65 @@ function SidebarNavItem({
 
 export default function SalonFlowOS() {
   const { activeModule, setActiveModule } = useSalonStore()
+  const { isAuthenticated, user, login, logout, setLoading, isLoading } = useAuthStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  // Validate existing token on mount
+  useEffect(() => {
+    const validateAuth = async () => {
+      const token = localStorage.getItem('salonflow_token')
+      if (token) {
+        try {
+          const res = await fetch('/api/auth/validate', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          const json = await res.json()
+          if (json.success) {
+            login(json.data)
+          } else {
+            localStorage.removeItem('salonflow_token')
+            logout()
+          }
+        } catch {
+          // If validate fails, keep logged out
+          setLoading(false)
+        }
+      } else {
+        setLoading(false)
+      }
+    }
+    validateAuth()
+  }, [login, logout, setLoading])
+
+  // Handle login from LoginPage
+  const handleLogin = (userData: AuthUser) => {
+    login(userData)
+  }
+
+  // Handle logout
+  const handleLogout = async () => {
+    const token = localStorage.getItem('salonflow_token')
+    if (token) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(() => {})
+    }
+    logout()
+  }
+
+  // Show login page if not authenticated
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex size-8 items-center justify-center rounded-full border-2 border-tahoe-accent border-t-transparent animate-spin" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />
+  }
 
   const renderModule = () => {
     switch (activeModule) {
@@ -230,12 +291,21 @@ export default function SalonFlowOS() {
                 className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold shadow-md"
                 whileHover={{ scale: 1.1 }}
               >
-                SF
+                {user?.name?.charAt(0)?.toUpperCase() || 'SF'}
               </motion.div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold truncate">SalonFlow Admin</p>
-                <p className="text-[10px] text-muted-foreground truncate">admin@salonflow.pk</p>
+                <p className="text-xs font-semibold truncate">{user?.name || 'Admin'}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{user?.email || 'admin@salonflow.pk'}</p>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 rounded-lg hover:bg-red-500/10 hover:text-red-500 shrink-0"
+                onClick={handleLogout}
+                title="Logout"
+              >
+                <LogOut className="size-3.5" />
+              </Button>
             </div>
           </div>
         </div>
@@ -315,12 +385,21 @@ export default function SalonFlowOS() {
             <div className="border-t border-sidebar-border/50 p-4">
               <div className="flex items-center gap-3 px-2">
                 <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold">
-                  SF
+                  {user?.name?.charAt(0)?.toUpperCase() || 'SF'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold truncate">SalonFlow Admin</p>
-                  <p className="text-[10px] text-muted-foreground truncate">admin@salonflow.pk</p>
+                  <p className="text-xs font-semibold truncate">{user?.name || 'Admin'}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.email || 'admin@salonflow.pk'}</p>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-lg hover:bg-red-500/10 hover:text-red-500 shrink-0"
+                  onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
+                  title="Logout"
+                >
+                  <LogOut className="size-3.5" />
+                </Button>
               </div>
             </div>
           </div>
