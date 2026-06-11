@@ -42,13 +42,13 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Rose glass colors */
-  --color-glass: var(--glass);
-  --color-glass-border: var(--glass-border);
-  --color-glass-hover: var(--glass-hover);
-  --color-vibrancy: var(--vibrancy);
-  --color-tahoe-accent: var(--tahoe-accent);
-  --color-tahoe-accent-soft: var(--tahoe-accent-soft);
+  /* Rose glass colors - use direct oklch values for @theme inline compatibility */
+  --color-glass: oklch(1 0.005 340 / 55%);
+  --color-glass-border: oklch(1 0.005 340 / 35%);
+  --color-glass-hover: oklch(1 0.005 340 / 70%);
+  --color-vibrancy: oklch(0.97 0.012 340 / 60%);
+  --color-tahoe-accent: oklch(0.50 0.20 350);
+  --color-tahoe-accent-soft: oklch(0.55 0.20 350 / 15%);
 }
 
 /* ─── Base Layer ──────────────────────────────────────────────────────────── */
@@ -118,6 +118,14 @@
     --vibrancy: oklch(0.97 0.012 340 / 60%);
     --tahoe-accent: oklch(0.50 0.20 350);
     --tahoe-accent-soft: oklch(0.55 0.20 350 / 15%);
+
+    /* Light mode overrides for @theme inline colors (ensures correct cascade) */
+    --color-glass: oklch(1 0.005 340 / 55%);
+    --color-glass-border: oklch(1 0.005 340 / 35%);
+    --color-glass-hover: oklch(1 0.005 340 / 70%);
+    --color-vibrancy: oklch(0.97 0.012 340 / 60%);
+    --color-tahoe-accent: oklch(0.50 0.20 350);
+    --color-tahoe-accent-soft: oklch(0.55 0.20 350 / 15%);
   }
 
   /* ─── Rose Dark Theme ──────────────────────────────────────────────── */
@@ -182,6 +190,14 @@
     --vibrancy: oklch(0.15 0.010 330 / 50%);
     --tahoe-accent: oklch(0.65 0.22 350);
     --tahoe-accent-soft: oklch(0.55 0.20 350 / 15%);
+
+    /* Dark mode overrides for @theme inline colors */
+    --color-glass: oklch(0.20 0.010 330 / 45%);
+    --color-glass-border: oklch(1 0 0 / 10%);
+    --color-glass-hover: oklch(0.25 0.012 340 / 60%);
+    --color-vibrancy: oklch(0.15 0.010 330 / 50%);
+    --color-tahoe-accent: oklch(0.65 0.22 350);
+    --color-tahoe-accent-soft: oklch(0.55 0.20 350 / 15%);
   }
 
   * {
