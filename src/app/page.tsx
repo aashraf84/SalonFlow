@@ -295,7 +295,7 @@ export default function SalonFlowOS() {
               </motion.div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold truncate">{user?.name || 'Admin'}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{user?.email || 'admin@salonflow.pk'}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{user?.email || '—'}</p>
               </div>
               <Button
                 variant="ghost"
@@ -389,7 +389,7 @@ export default function SalonFlowOS() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold truncate">{user?.name || 'Admin'}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{user?.email || 'admin@salonflow.pk'}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.email || '—'}</p>
                 </div>
                 <Button
                   variant="ghost"

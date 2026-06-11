@@ -694,7 +694,7 @@ export function OwnerModule() {
           <p>Enterprise Resource Planning</p>
           <p style="margin-top:8px; font-size:12px; color:#333;">ApexFlow Ecosystem</p>
           <p style="font-size:11px; color:#666;">Karachi, Pakistan</p>
-          <p style="font-size:11px; color:#666;">info@salonflow.pk | +92-300-1234567</p>
+          <p style="font-size:11px; color:#666;">admin@apexflow.cloud</p>
         </div>
         <div class="invoice-label">
           <h2>INVOICE</h2>
@@ -808,7 +808,7 @@ export function OwnerModule() {
           <p>Enterprise Resource Planning</p>
           <p style="margin-top:8px; font-size:12px; color:#333;">ApexFlow Ecosystem</p>
           <p style="font-size:11px; color:#666;">Karachi, Pakistan</p>
-          <p style="font-size:11px; color:#666;">info@salonflow.pk | +92-300-1234567</p>
+          <p style="font-size:11px; color:#666;">admin@apexflow.cloud</p>
         </div>
         <div class="quote-label">
           <h2>QUOTATION</h2>

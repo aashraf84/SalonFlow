@@ -140,6 +140,8 @@ export function MembershipsModule() {
   const [customerResults, setCustomerResults] = useState<{id: string; firstName: string; lastName: string; phone: string}[]>([])
   const [searchingCustomers, setSearchingCustomers] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   // Form state
   const [formName, setFormName] = useState('')

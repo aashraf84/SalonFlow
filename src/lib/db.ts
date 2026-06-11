@@ -63,9 +63,15 @@ export async function getTenantClient(clientId: string): Promise<PrismaClient | 
  * Build a Neon PostgreSQL connection string for a tenant database.
  */
 export function buildTenantConnectionString(dbName: string): string {
-  const host = process.env.NEON_HOST || 'ep-billowing-silence-aik4vnm2-pooler.c-4.us-east-1.aws.neon.tech'
+  const host = process.env.NEON_HOST
+  if (!host) {
+    throw new Error('NEON_HOST environment variable is required for tenant database provisioning')
+  }
   const user = process.env.NEON_USER || 'neondb_owner'
-  const password = process.env.NEON_PASSWORD || ''
+  const password = process.env.NEON_PASSWORD
+  if (!password) {
+    throw new Error('NEON_PASSWORD environment variable is required for tenant database provisioning')
+  }
   return `postgresql://${user}:${password}@${host}/${dbName}?sslmode=require`
 }
 

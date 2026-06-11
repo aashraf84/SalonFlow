@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ChatMessage {
   id: string
@@ -42,6 +43,96 @@ interface QuickAction {
   icon: React.ReactNode
   prompt: string
   color: string
+}
+
+interface AIInsight {
+  title: string
+  value: string
+  trend: 'up' | 'down' | 'neutral'
+  description: string
+}
+
+// ─── Dashboard API response types ──────────────────────────────────────────
+
+interface DashboardData {
+  todayStats: {
+    appointmentsCount: number
+    revenue: number
+    completedAppointments: number
+  }
+  monthlyStats: {
+    revenue: number
+    appointmentsCount: number
+    newCustomers: number
+  }
+  customerMetrics: {
+    totalActive: number
+    membershipRevenue: number
+    totalLoyaltyPoints: number
+    averageLifetimeValue: number
+  }
+  staffMetrics: {
+    total: number
+    byRole: Record<string, number>
+  }
+  appointmentTrends: Array<{
+    date: string
+    count: number
+    revenue: number
+  }>
+  revenueByService: Array<{
+    category: string
+    revenue: number
+  }>
+  recentAppointments: Array<{
+    id: string
+    date: string
+    startTime: string
+    endTime: string
+    status: string
+    type: string
+    totalAmount: number
+    notes: string | null
+    customer: {
+      id: string
+      firstName: string
+      lastName: string
+      phone: string
+    } | null
+    staff: {
+      id: string
+      firstName: string
+      lastName: string
+      role: string
+    }
+  }>
+  topServices: Array<{
+    serviceId: string
+    name: string
+    price: number
+    duration: number
+    category: string
+    bookingCount: number
+  }>
+  branchPerformance: Array<{
+    branchId: string
+    branchName: string
+    revenue: number
+    appointmentsCount: number
+  }>
+  inventoryAlerts: Array<{
+    id: string
+    productName: string
+    sku: string
+    quantity: number
+    reorderLevel: number
+    branchName: string
+  }>
+  loyaltyTierBreakdown: Record<string, number>
+  monthlyRevenueTrend: Array<{
+    month: string
+    revenue: number
+  }>
 }
 
 const quickActions: QuickAction[] = [
@@ -82,32 +173,129 @@ const quickActions: QuickAction[] = [
   },
 ]
 
-const aiInsights = [
-  {
-    title: 'Revenue Trend',
-    value: '+14.2%',
-    trend: 'up' as const,
-    description: 'vs last month',
-  },
-  {
-    title: 'Busiest Day',
-    value: 'Saturday',
-    trend: 'neutral' as const,
-    description: '2pm - 5pm peak',
-  },
-  {
-    title: 'Top Staff',
-    value: 'A. Khan',
-    trend: 'up' as const,
-    description: '42 bookings this week',
-  },
-  {
-    title: 'Hot Service',
-    value: 'Keratin',
-    trend: 'up' as const,
-    description: '+28% this month',
-  },
-]
+// ─── Helper: compute real insights from dashboard data ─────────────────────
+
+function computeInsights(data: DashboardData): AIInsight[] {
+  const insights: AIInsight[] = []
+
+  // 1. Revenue Trend — compare current month vs previous month
+  const revenueTrend = data.monthlyRevenueTrend
+  if (revenueTrend.length >= 2) {
+    const currentMonth = revenueTrend[revenueTrend.length - 1]
+    const previousMonth = revenueTrend[revenueTrend.length - 2]
+    const current = currentMonth.revenue
+    const previous = previousMonth.revenue
+
+    if (previous > 0) {
+      const pctChange = ((current - previous) / previous) * 100
+      const sign = pctChange >= 0 ? '+' : ''
+      insights.push({
+        title: 'Revenue Trend',
+        value: `${sign}${pctChange.toFixed(1)}%`,
+        trend: pctChange > 0 ? 'up' : pctChange < 0 ? 'down' : 'neutral',
+        description: 'vs last month',
+      })
+    } else if (current > 0) {
+      insights.push({
+        title: 'Revenue Trend',
+        value: `+${current.toFixed(0)}`,
+        trend: 'up',
+        description: 'new revenue this month',
+      })
+    } else {
+      insights.push({
+        title: 'Revenue Trend',
+        value: '0%',
+        trend: 'neutral',
+        description: 'no revenue yet',
+      })
+    }
+  } else if (revenueTrend.length === 1) {
+    const current = revenueTrend[0].revenue
+    insights.push({
+      title: 'Revenue Trend',
+      value: current > 0 ? `${current.toFixed(0)}` : '0',
+      trend: current > 0 ? 'up' : 'neutral',
+      description: 'first month data',
+    })
+  }
+
+  // 2. Busiest Day — find the day with most appointments from trends
+  const trends = data.appointmentTrends
+  if (trends.length > 0 && trends.some((t) => t.count > 0)) {
+    const busiest = trends.reduce((max, t) => (t.count > max.count ? t : max), trends[0])
+    const dayName = new Date(busiest.date + 'T00:00:00Z').toLocaleDateString('en-US', {
+      weekday: 'long',
+      timeZone: 'UTC',
+    })
+    insights.push({
+      title: 'Busiest Day',
+      value: dayName,
+      trend: 'neutral',
+      description: `${busiest.count} appointment${busiest.count !== 1 ? 's' : ''}`,
+    })
+  } else {
+    insights.push({
+      title: 'Busiest Day',
+      value: 'N/A',
+      trend: 'neutral',
+      description: 'no appointment data',
+    })
+  }
+
+  // 3. Top Staff — staff with most appointments from recentAppointments
+  const recentAppts = data.recentAppointments
+  if (recentAppts.length > 0) {
+    const staffCounts = new Map<string, { name: string; count: number }>()
+    for (const appt of recentAppts) {
+      const key = appt.staff.id
+      const name = `${appt.staff.firstName} ${appt.staff.lastName}`
+      const existing = staffCounts.get(key)
+      if (existing) {
+        existing.count++
+      } else {
+        staffCounts.set(key, { name, count: 1 })
+      }
+    }
+    const topStaffEntry = [...staffCounts.values()].sort((a, b) => b.count - a.count)[0]
+    if (topStaffEntry) {
+      insights.push({
+        title: 'Top Staff',
+        value: topStaffEntry.name,
+        trend: 'up',
+        description: `${topStaffEntry.count} booking${topStaffEntry.count !== 1 ? 's' : ''} recently`,
+      })
+    }
+  } else {
+    insights.push({
+      title: 'Top Staff',
+      value: 'N/A',
+      trend: 'neutral',
+      description: 'no booking data',
+    })
+  }
+
+  // 4. Hot Service — most booked service from topServices
+  const topServices = data.topServices
+  if (topServices.length > 0) {
+    const hotService = topServices[0]
+    insights.push({
+      title: 'Hot Service',
+      value: hotService.name,
+      trend: 'up',
+      description: `${hotService.bookingCount} booking${hotService.bookingCount !== 1 ? 's' : ''} total`,
+    })
+  } else {
+    insights.push({
+      title: 'Hot Service',
+      value: 'N/A',
+      trend: 'neutral',
+      description: 'no service data',
+    })
+  }
+
+  return insights
+}
 
 export default function AIAssistantModule() {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -123,6 +311,62 @@ export default function AIAssistantModule() {
   const [isLoading, setIsLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // ─── AI Insights state ─────────────────────────────────────────────────
+  const [aiInsights, setAiInsights] = useState<AIInsight[]>([])
+  const [insightsLoading, setInsightsLoading] = useState(true)
+  const [insightsEmpty, setInsightsEmpty] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchInsights() {
+      setInsightsLoading(true)
+      setInsightsEmpty(false)
+
+      try {
+        const res = await fetch('/api/dashboard')
+        const json = await res.json()
+
+        if (cancelled) return
+
+        if (json.success && json.data) {
+          const data = json.data as DashboardData
+          const computed = computeInsights(data)
+
+          // If every insight shows "N/A" or no revenue, treat as empty
+          const hasData = computed.some(
+            (i) => i.value !== 'N/A' && i.value !== '0' && i.value !== '0%',
+          )
+
+          if (hasData) {
+            setAiInsights(computed)
+            setInsightsEmpty(false)
+          } else {
+            setAiInsights([])
+            setInsightsEmpty(true)
+          }
+        } else {
+          setAiInsights([])
+          setInsightsEmpty(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setAiInsights([])
+          setInsightsEmpty(true)
+        }
+      } finally {
+        if (!cancelled) {
+          setInsightsLoading(false)
+        }
+      }
+    }
+
+    fetchInsights()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -341,27 +585,57 @@ export default function AIAssistantModule() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {aiInsights.map((insight, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50"
-                >
-                  <div>
-                    <p className="text-xs text-muted-foreground">{insight.title}</p>
-                    <p className="text-sm font-semibold">{insight.value}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {insight.description}
-                    </p>
+              {/* Loading skeleton */}
+              {insightsLoading &&
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-2.5 w-24" />
+                    </div>
+                    <Skeleton className="h-4 w-4 rounded" />
                   </div>
-                  {insight.trend === 'up' ? (
-                    <ArrowUpRight className="h-4 w-4 text-emerald-500" />
-                  ) : insight.trend === 'down' ? (
-                    <ArrowDownRight className="h-4 w-4 text-red-500" />
-                  ) : (
-                    <Clock className="h-4 w-4 text-amber-500" />
-                  )}
+                ))}
+
+              {/* No data state */}
+              {!insightsLoading && insightsEmpty && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Lightbulb className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">No data yet</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">
+                    Insights will appear as your salon data grows
+                  </p>
                 </div>
-              ))}
+              )}
+
+              {/* Real insights */}
+              {!insightsLoading &&
+                !insightsEmpty &&
+                aiInsights.map((insight, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50"
+                  >
+                    <div>
+                      <p className="text-xs text-muted-foreground">{insight.title}</p>
+                      <p className="text-sm font-semibold">{insight.value}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {insight.description}
+                      </p>
+                    </div>
+                    {insight.trend === 'up' ? (
+                      <ArrowUpRight className="h-4 w-4 text-emerald-500" />
+                    ) : insight.trend === 'down' ? (
+                      <ArrowDownRight className="h-4 w-4 text-red-500" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-amber-500" />
+                    )}
+                  </div>
+                ))}
             </CardContent>
           </Card>
 

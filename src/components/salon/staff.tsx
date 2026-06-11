@@ -163,6 +163,7 @@ export function StaffModule() {
     bio: '',
   })
   const [editSaving, setEditSaving] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',

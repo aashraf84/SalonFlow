@@ -92,11 +92,6 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       message: 'Demo data seeded successfully',
-      data: {
-        demoUser: { email: 'demo@salonflow.pk', password: 'demo123' },
-        demoSerialKey: 'SALON-DEMO-2024-ACTIVATION',
-        proSerialKey: 'SALONFLOW-PRO-2024-LICENSE',
-      }
     })
   } catch (error) {
     console.error('Seed error:', error)

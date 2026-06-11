@@ -307,7 +307,7 @@ export function PosModule() {
     <div class="line"></div>
     <div class="center" style="margin-top:8px;">
       <p>Thank you for your visit!</p>
-      <p style="font-size:9px;margin-top:3px;">SalonFlow OS v1.0 | Powered by ApexFlow</p>
+      <p style="font-size:9px;margin-top:3px;">SalonFlow OS | Powered by ApexFlow</p>
     </div>
     </body></html>`)
     w.document.close()

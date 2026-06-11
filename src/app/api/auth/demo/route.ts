@@ -29,7 +29,6 @@ export async function POST() {
           avatar: existing.avatar,
           phone: existing.phone,
           token,
-          credentials: { email: 'demo@salonflow.pk', password: 'demo123' }
         }
       })
     }
@@ -69,7 +68,6 @@ export async function POST() {
         avatar: demoUser.avatar,
         phone: demoUser.phone,
         token,
-        credentials: { email: 'demo@salonflow.pk', password: 'demo123' }
       }
     })
   } catch (error) {

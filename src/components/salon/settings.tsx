@@ -51,10 +51,10 @@ export default function SettingsModule() {
 
   // General Settings State
   const [general, setGeneral] = useState({
-    salonName: 'SalonFlow Premium',
-    address: '123 Main Boulevard, Gulberg III, Lahore',
-    phone: '+92 300 1234567',
-    email: 'info@salonflow.pk',
+    salonName: '',
+    address: '',
+    phone: '',
+    email: '',
     timezone: 'Asia/Karachi',
     openTime: '09:00',
     closeTime: '21:00',
@@ -66,7 +66,7 @@ export default function SettingsModule() {
     taxRate: '16',
     bookingBuffer: '15',
     maxAdvanceBooking: '30',
-    cancellationPolicy: 'Cancellations must be made at least 2 hours before the appointment. Late cancellations may incur a fee of 50% of the service cost.',
+    cancellationPolicy: '',
     minBookingNotice: '2',
     allowOnlineBooking: true,
     requireDeposit: false,
