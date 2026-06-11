@@ -33,6 +33,11 @@ import {
   Timer,
   Shield,
   LogOut,
+  Ticket,
+  FileSearch,
+  DollarSign,
+  Truck,
+  ClipboardList,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -67,6 +72,12 @@ const SchedulingModule = dynamic(() => import('@/components/salon/scheduling').t
 const CommissionModule = dynamic(() => import('@/components/salon/commissions').then(mod => ({ default: mod.CommissionModule })), { ssr: false })
 const WaitlistModule = dynamic(() => import('@/components/salon/waitlist').then(mod => ({ default: mod.WaitlistModule })), { ssr: false })
 const OwnerModule = dynamic(() => import('@/components/salon/owner').then(mod => ({ default: mod.OwnerModule })), { ssr: false })
+const PayrollModule = dynamic(() => import('@/components/salon/payroll').then(mod => ({ default: mod.PayrollModule })), { ssr: false })
+const CouponsModule = dynamic(() => import('@/components/salon/coupons').then(mod => ({ default: mod.CouponsModule })), { ssr: false })
+const AuditLogModule = dynamic(() => import('@/components/salon/audit-log').then(mod => ({ default: mod.AuditLogModule })), { ssr: false })
+const AttendanceModule = dynamic(() => import('@/components/salon/attendance').then(mod => ({ default: mod.AttendanceModule })), { ssr: false })
+const TipsModule = dynamic(() => import('@/components/salon/tips').then(mod => ({ default: mod.TipsModule })), { ssr: false })
+const SuppliersModule = dynamic(() => import('@/components/salon/suppliers').then(mod => ({ default: mod.SuppliersModule })), { ssr: false })
 
 const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; group: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="size-[18px]" />, group: 'Main' },
@@ -84,12 +95,18 @@ const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; gr
   { key: 'inventory', label: 'Inventory', icon: <Package className="size-[18px]" />, group: 'Business' },
   { key: 'finance', label: 'Finance', icon: <Wallet className="size-[18px]" />, group: 'Business' },
   { key: 'commissions', label: 'Commissions', icon: <Coins className="size-[18px]" />, group: 'Business' },
+  { key: 'payroll', label: 'Payroll', icon: <Wallet className="size-[18px]" />, group: 'Business' },
+  { key: 'suppliers', label: 'Suppliers & PO', icon: <Truck className="size-[18px]" />, group: 'Business' },
   { key: 'waitlist', label: 'Waitlist', icon: <Timer className="size-[18px]" />, group: 'Business' },
+  { key: 'coupons', label: 'Coupons & Promos', icon: <Ticket className="size-[18px]" />, group: 'Business' },
+  { key: 'tips', label: 'Tips & Gratuity', icon: <DollarSign className="size-[18px]" />, group: 'Business' },
+  { key: 'attendance', label: 'Attendance', icon: <ClipboardList className="size-[18px]" />, group: 'Operations' },
   { key: 'marketing', label: 'Marketing', icon: <Megaphone className="size-[18px]" />, group: 'Intelligence' },
   { key: 'feedback', label: 'Feedback', icon: <MessageSquare className="size-[18px]" />, group: 'Intelligence' },
   { key: 'branches', label: 'Branches', icon: <Building2 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'reports', label: 'Reports', icon: <BarChart3 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'ai-assistant', label: 'AI Assistant', icon: <Bot className="size-[18px]" />, group: 'Intelligence' },
+  { key: 'audit-log', label: 'Audit Log', icon: <FileSearch className="size-[18px]" />, group: 'Intelligence' },
   { key: 'settings', label: 'Settings', icon: <Settings className="size-[18px]" />, group: 'Intelligence' },
   { key: 'owner', label: 'Owner Panel', icon: <Shield className="size-[18px]" />, group: 'Enterprise' },
 ]
@@ -231,7 +248,13 @@ export default function SalonFlowOS() {
       case 'feedback': return <FeedbackModule />
       case 'scheduling': return <SchedulingModule />
       case 'commissions': return <CommissionModule />
+      case 'payroll': return <PayrollModule />
       case 'waitlist': return <WaitlistModule />
+      case 'coupons': return <CouponsModule />
+      case 'audit-log': return <AuditLogModule />
+      case 'attendance': return <AttendanceModule />
+      case 'tips': return <TipsModule />
+      case 'suppliers': return <SuppliersModule />
       case 'owner': return <OwnerModule />
       default: return <DashboardModule />
     }

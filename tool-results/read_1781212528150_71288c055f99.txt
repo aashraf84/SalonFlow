@@ -1,0 +1,904 @@
+     1→import { NextRequest, NextResponse } from 'next/server'
+     2→import { db } from '@/lib/db'
+     3→import { format } from 'date-fns'
+     4→
+     5→function getDateRange(from?: string, to?: string) {
+     6→  const dateFrom = from ? new Date(from) : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+     7→  const dateTo = to ? new Date(to) : new Date()
+     8→  dateTo.setHours(23, 59, 59, 999)
+     9→  dateFrom.setHours(0, 0, 0, 0)
+    10→  return { dateFrom, dateTo }
+    11→}
+    12→
+    13→// 1. Revenue Report
+    14→async function getRevenueReport(dateFrom: Date, dateTo: Date) {
+    15→  const invoices = await db.invoice.findMany({
+    16→    where: {
+    17→      createdAt: { gte: dateFrom, lte: dateTo },
+    18→      paymentStatus: { in: ['paid', 'partial'] },
+    19→    },
+    20→    include: { items: true },
+    21→  })
+    22→
+    23→  const totalRevenue = invoices.reduce((s, i) => s + i.totalAmount, 0)
+    24→  const totalTax = invoices.reduce((s, i) => s + i.tax, 0)
+    25→  const totalDiscount = invoices.reduce((s, i) => s + i.discount, 0)
+    26→  const avgInvoiceValue = invoices.length > 0 ? totalRevenue / invoices.length : 0
+    27→
+    28→  const paymentMethods: Record<string, number> = {}
+    29→  invoices.forEach((i) => {
+    30→    paymentMethods[i.paymentMethod] = (paymentMethods[i.paymentMethod] || 0) + i.totalAmount
+    31→  })
+    32→
+    33→  const dailyRevenue: Record<string, number> = {}
+    34→  invoices.forEach((i) => {
+    35→    const day = format(i.createdAt, 'yyyy-MM-dd')
+    36→    dailyRevenue[day] = (dailyRevenue[day] || 0) + i.totalAmount
+    37→  })
+    38→
+    39→  const serviceRevenue: Record<string, { name: string; revenue: number; count: number }> = {}
+    40→  invoices.forEach((inv) => {
+    41→    inv.items.forEach((item) => {
+    42→      if (item.itemType === 'service') {
+    43→        if (!serviceRevenue[item.name]) {
+    44→          serviceRevenue[item.name] = { name: item.name, revenue: 0, count: 0 }
+    45→        }
+    46→        serviceRevenue[item.name].revenue += item.total
+    47→        serviceRevenue[item.name].count += item.quantity
+    48→      }
+    49→    })
+    50→  })
+    51→
+    52→  const topServices = Object.values(serviceRevenue)
+    53→    .sort((a, b) => b.revenue - a.revenue)
+    54→    .slice(0, 10)
+    55→
+    56→  const revenueByType: Record<string, number> = {}
+    57→  invoices.forEach((inv) => {
+    58→    revenueByType[inv.type] = (revenueByType[inv.type] || 0) + inv.totalAmount
+    59→  })
+    60→
+    61→  return {
+    62→    summary: {
+    63→      totalRevenue,
+    64→      totalTax,
+    65→      totalDiscount,
+    66→      avgInvoiceValue,
+    67→      invoiceCount: invoices.length,
+    68→      periodStart: format(dateFrom, 'yyyy-MM-dd'),
+    69→      periodEnd: format(dateTo, 'yyyy-MM-dd'),
+    70→    },
+    71→    charts: {
+    72→      dailyRevenue: Object.entries(dailyRevenue)
+    73→        .sort(([a], [b]) => a.localeCompare(b))
+    74→        .map(([date, amount]) => ({ date, amount })),
+    75→      paymentMethods: Object.entries(paymentMethods).map(([method, amount]) => ({
+    76→        method,
+    77→        amount,
+    78→      })),
+    79→      revenueByType: Object.entries(revenueByType).map(([type, amount]) => ({ type, amount })),
+    80→    },
+    81→    details: {
+    82→      topServices,
+    83→    },
+    84→  }
+    85→}
+    86→
+    87→// 2. Appointment Report
+    88→async function getAppointmentReport(dateFrom: Date, dateTo: Date) {
+    89→  const appointments = await db.appointment.findMany({
+    90→    where: { date: { gte: dateFrom, lte: dateTo } },
+    91→    include: {
+    92→      staff: { select: { firstName: true, lastName: true } },
+    93→      services: { include: { service: { select: { name: true } } } },
+    94→    },
+    95→  })
+    96→
+    97→  const total = appointments.length
+    98→  const statusBreakdown: Record<string, number> = {}
+    99→  appointments.forEach((a) => {
+   100→    statusBreakdown[a.status] = (statusBreakdown[a.status] || 0) + 1
+   101→  })
+   102→
+   103→  const hourCounts: Record<number, number> = {}
+   104→  appointments.forEach((a) => {
+   105→    const hour = parseInt(a.startTime.split(':')[0], 10)
+   106→    hourCounts[hour] = (hourCounts[hour] || 0) + 1
+   107→  })
+   108→
+   109→  const staffBookings: Record<string, { name: string; bookings: number; completed: number }> = {}
+   110→  appointments.forEach((a) => {
+   111→    const name = `${a.staff.firstName} ${a.staff.lastName}`
+   112→    if (!staffBookings[a.staffId]) {
+   113→      staffBookings[a.staffId] = { name, bookings: 0, completed: 0 }
+   114→    }
+   115→    staffBookings[a.staffId].bookings++
+   116→    if (a.status === 'completed') staffBookings[a.staffId].completed++
+   117→  })
+   118→
+   119→  const dailyTrend: Record<string, { total: number; completed: number; cancelled: number }> = {}
+   120→  appointments.forEach((a) => {
+   121→    const day = format(a.date, 'yyyy-MM-dd')
+   122→    if (!dailyTrend[day]) dailyTrend[day] = { total: 0, completed: 0, cancelled: 0 }
+   123→    dailyTrend[day].total++
+   124→    if (a.status === 'completed') dailyTrend[day].completed++
+   125→    if (a.status === 'cancelled') dailyTrend[day].cancelled++
+   126→  })
+   127→
+   128→  const typeBreakdown: Record<string, number> = {}
+   129→  appointments.forEach((a) => {
+   130→    typeBreakdown[a.type] = (typeBreakdown[a.type] || 0) + 1
+   131→  })
+   132→
+   133→  const completedRate = total > 0 ? ((statusBreakdown['completed'] || 0) / total) * 100 : 0
+   134→  const noShowRate = total > 0 ? ((statusBreakdown['no_show'] || 0) / total) * 100 : 0
+   135→  const cancellationRate = total > 0 ? ((statusBreakdown['cancelled'] || 0) / total) * 100 : 0
+   136→
+   137→  return {
+   138→    summary: {
+   139→      totalAppointments: total,
+   140→      completedRate: Math.round(completedRate * 10) / 10,
+   141→      noShowRate: Math.round(noShowRate * 10) / 10,
+   142→      cancellationRate: Math.round(cancellationRate * 10) / 10,
+   143→    },
+   144→    charts: {
+   145→      statusBreakdown: Object.entries(statusBreakdown).map(([status, count]) => ({
+   146→        status,
+   147→        count,
+   148→      })),
+   149→      peakHours: Object.entries(hourCounts)
+   150→        .sort(([a], [b]) => Number(a) - Number(b))
+   151→        .map(([hour, count]) => ({
+   152→          hour: `${hour}:00`,
+   153→          count,
+   154→        })),
+   155→      dailyTrend: Object.entries(dailyTrend)
+   156→        .sort(([a], [b]) => a.localeCompare(b))
+   157→        .map(([date, data]) => ({ date, ...data })),
+   158→      typeBreakdown: Object.entries(typeBreakdown).map(([type, count]) => ({ type, count })),
+   159→    },
+   160→    details: {
+   161→      staffBookings: Object.values(staffBookings).sort((a, b) => b.bookings - a.bookings),
+   162→    },
+   163→  }
+   164→}
+   165→
+   166→// 3. Staff Performance Report
+   167→async function getStaffPerformanceReport(dateFrom: Date, dateTo: Date) {
+   168→  const staffMembers = await db.staff.findMany({
+   169→    where: { status: 'active' },
+   170→    include: {
+   171→      appointments: {
+   172→        where: { date: { gte: dateFrom, lte: dateTo }, status: 'completed' },
+   173→      },
+   174→      commissions: {
+   175→        where: { createdAt: { gte: dateFrom, lte: dateTo } },
+   176→      },
+   177→    },
+   178→  })
+   179→
+   180→  const feedback = await db.feedback.findMany({
+   181→    where: { createdAt: { gte: dateFrom, lte: dateTo }, staffId: { not: null } },
+   182→  })
+   183→
+   184→  const staffRatings: Record<string, { total: number; count: number }> = {}
+   185→  feedback.forEach((f) => {
+   186→    if (!f.staffId) return
+   187→    if (!staffRatings[f.staffId]) staffRatings[f.staffId] = { total: 0, count: 0 }
+   188→    staffRatings[f.staffId].total += f.rating
+   189→    staffRatings[f.staffId].count++
+   190→  })
+   191→
+   192→  const staffMetrics = staffMembers.map((s) => {
+   193→    const appointmentsCompleted = s.appointments.length
+   194→    const totalRevenue = s.appointments.reduce((sum, a) => sum + a.totalAmount, 0)
+   195→    const commissionsEarned = s.commissions.reduce((sum, c) => sum + c.amount, 0)
+   196→    const commissionsPaid = s.commissions
+   197→      .filter((c) => c.status === 'paid')
+   198→      .reduce((sum, c) => sum + c.amount, 0)
+   199→    const avgRevenuePerAppointment =
+   200→      appointmentsCompleted > 0 ? totalRevenue / appointmentsCompleted : 0
+   201→    const avgRating = staffRatings[s.id]
+   202→      ? Math.round((staffRatings[s.id].total / staffRatings[s.id].count) * 10) / 10
+   203→      : 0
+   204→
+   205→    return {
+   206→      name: `${s.firstName} ${s.lastName}`,
+   207→      role: s.role,
+   208→      specialization: s.specialization || '—',
+   209→      appointmentsCompleted,
+   210→      totalRevenue,
+   211→      commissionsEarned,
+   212→      commissionsPaid,
+   213→      avgRevenuePerAppointment: Math.round(avgRevenuePerAppointment),
+   214→      commissionRate: s.commissionRate,
+   215→      avgRating,
+   216→    }
+   217→  })
+   218→
+   219→  const totalRevenue = staffMetrics.reduce((s, m) => s + m.totalRevenue, 0)
+   220→  const totalCommissions = staffMetrics.reduce((s, m) => s + m.commissionsEarned, 0)
+   221→  const totalAppointments = staffMetrics.reduce((s, m) => s + m.appointmentsCompleted, 0)
+   222→
+   223→  return {
+   224→    summary: {
+   225→      totalStaff: staffMembers.length,
+   226→      totalAppointments,
+   227→      totalRevenue,
+   228→      totalCommissions,
+   229→      avgRevenuePerStaff: staffMembers.length > 0 ? Math.round(totalRevenue / staffMembers.length) : 0,
+   230→    },
+   231→    charts: {
+   232→      revenueByStaff: staffMetrics
+   233→        .sort((a, b) => b.totalRevenue - a.totalRevenue)
+   234→        .slice(0, 10)
+   235→        .map((m) => ({ name: m.name, revenue: m.totalRevenue })),
+   236→      appointmentsByStaff: staffMetrics
+   237→        .sort((a, b) => b.appointmentsCompleted - a.appointmentsCompleted)
+   238→        .slice(0, 10)
+   239→        .map((m) => ({ name: m.name, appointments: m.appointmentsCompleted })),
+   240→    },
+   241→    details: {
+   242→      staffMetrics,
+   243→    },
+   244→  }
+   245→}
+   246→
+   247→// 4. Customer Report
+   248→async function getCustomerReport(dateFrom: Date, dateTo: Date) {
+   249→  const customers = await db.customer.findMany({
+   250→    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+   251→  })
+   252→
+   253→  const allCustomers = await db.customer.findMany()
+   254→
+   255→  const newCustomers = customers.length
+   256→  const totalCustomers = allCustomers.length
+   257→  const returningCustomers = allCustomers.filter((c) => c.totalVisits > 1).length
+   258→  const retentionRate = totalCustomers > 0 ? (returningCustomers / totalCustomers) * 100 : 0
+   259→
+   260→  const genderDist: Record<string, number> = {}
+   261→  allCustomers.forEach((c) => {
+   262→    const g = c.gender || 'unknown'
+   263→    genderDist[g] = (genderDist[g] || 0) + 1
+   264→  })
+   265→
+   266→  const tierDist: Record<string, number> = {}
+   267→  allCustomers.forEach((c) => {
+   268→    tierDist[c.loyaltyTier] = (tierDist[c.loyaltyTier] || 0) + 1
+   269→  })
+   270→
+   271→  const ltvBuckets: Record<string, number> = {
+   272→    'PKR 0-5K': 0,
+   273→    'PKR 5K-15K': 0,
+   274→    'PKR 15K-30K': 0,
+   275→    'PKR 30K-50K': 0,
+   276→    'PKR 50K+': 0,
+   277→  }
+   278→  allCustomers.forEach((c) => {
+   279→    if (c.lifetimeValue < 5000) ltvBuckets['PKR 0-5K']++
+   280→    else if (c.lifetimeValue < 15000) ltvBuckets['PKR 5K-15K']++
+   281→    else if (c.lifetimeValue < 30000) ltvBuckets['PKR 15K-30K']++
+   282→    else if (c.lifetimeValue < 50000) ltvBuckets['PKR 30K-50K']++
+   283→    else ltvBuckets['PKR 50K+']++
+   284→  })
+   285→
+   286→  const totalLifetimeValue = allCustomers.reduce((s, c) => s + c.lifetimeValue, 0)
+   287→  const avgLifetimeValue = totalCustomers > 0 ? totalLifetimeValue / totalCustomers : 0
+   288→
+   289→  const monthlyNew: Record<string, number> = {}
+   290→  customers.forEach((c) => {
+   291→    const month = format(c.createdAt, 'yyyy-MM')
+   292→    monthlyNew[month] = (monthlyNew[month] || 0) + 1
+   293→  })
+   294→
+   295→  return {
+   296→    summary: {
+   297→      totalCustomers,
+   298→      newCustomers,
+   299→      returningCustomers,
+   300→      retentionRate: Math.round(retentionRate * 10) / 10,
+   301→      totalLifetimeValue,
+   302→      avgLifetimeValue: Math.round(avgLifetimeValue),
+   303→    },
+   304→    charts: {
+   305→      genderDistribution: Object.entries(genderDist).map(([gender, count]) => ({ gender, count })),
+   306→      tierDistribution: Object.entries(tierDist).map(([tier, count]) => ({ tier, count })),
+   307→      ltvDistribution: Object.entries(ltvBuckets).map(([range, count]) => ({ range, count })),
+   308→      monthlyNewCustomers: Object.entries(monthlyNew)
+   309→        .sort(([a], [b]) => a.localeCompare(b))
+   310→        .map(([month, count]) => ({ month, count })),
+   311→    },
+   312→    details: {
+   313→      topCustomers: allCustomers
+   314→        .sort((a, b) => b.lifetimeValue - a.lifetimeValue)
+   315→        .slice(0, 15)
+   316→        .map((c) => ({
+   317→          name: `${c.firstName} ${c.lastName}`,
+   318→          phone: c.phone,
+   319→          totalVisits: c.totalVisits,
+   320→          lifetimeValue: c.lifetimeValue,
+   321→          tier: c.loyaltyTier,
+   322→          points: c.loyaltyPoints,
+   323→        })),
+   324→    },
+   325→  }
+   326→}
+   327→
+   328→// 5. Inventory Report
+   329→async function getInventoryReport(dateFrom: Date, dateTo: Date) {
+   330→  const inventoryItems = await db.inventoryItem.findMany({
+   331→    include: {
+   332→      product: {
+   333→        include: { category: true },
+   334→      },
+   335→      branch: { select: { name: true } },
+   336→    },
+   337→  })
+   338→
+   339→  void dateFrom
+   340→  void dateTo
+   341→
+   342→  const lowStockItems = inventoryItems.filter(
+   343→    (i) => i.quantity <= i.product.reorderLevel
+   344→  )
+   345→
+   346→  const totalItems = inventoryItems.length
+   347→  const totalQuantity = inventoryItems.reduce((s, i) => s + i.quantity, 0)
+   348→  const totalValue = inventoryItems.reduce(
+   349→    (s, i) => s + i.quantity * i.product.costPrice,
+   350→    0
+   351→  )
+   352→  const totalSellingValue = inventoryItems.reduce(
+   353→    (s, i) => s + i.quantity * i.product.sellingPrice,
+   354→    0
+   355→  )
+   356→
+   357→  const categoryBreakdown: Record<string, { quantity: number; value: number }> = {}
+   358→  inventoryItems.forEach((i) => {
+   359→    const cat = i.product.category?.name || 'Uncategorized'
+   360→    if (!categoryBreakdown[cat]) categoryBreakdown[cat] = { quantity: 0, value: 0 }
+   361→    categoryBreakdown[cat].quantity += i.quantity
+   362→    categoryBreakdown[cat].value += i.quantity * i.product.costPrice
+   363→  })
+   364→
+   365→  const branchBreakdown: Record<string, { items: number; quantity: number; value: number }> = {}
+   366→  inventoryItems.forEach((i) => {
+   367→    const branch = i.branch.name
+   368→    if (!branchBreakdown[branch]) branchBreakdown[branch] = { items: 0, quantity: 0, value: 0 }
+   369→    branchBreakdown[branch].items++
+   370→    branchBreakdown[branch].quantity += i.quantity
+   371→    branchBreakdown[branch].value += i.quantity * i.product.costPrice
+   372→  })
+   373→
+   374→  const thirtyDaysFromNow = new Date()
+   375→  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+   376→  const expiringSoon = inventoryItems.filter(
+   377→    (i) => i.expiryDate && i.expiryDate <= thirtyDaysFromNow
+   378→  )
+   379→
+   380→  return {
+   381→    summary: {
+   382→      totalProducts: totalItems,
+   383→      totalQuantity,
+   384→      totalValue,
+   385→      totalSellingValue,
+   386→      lowStockCount: lowStockItems.length,
+   387→      expiringSoonCount: expiringSoon.length,
+   388→      potentialProfit: totalSellingValue - totalValue,
+   389→    },
+   390→    charts: {
+   391→      categoryBreakdown: Object.entries(categoryBreakdown).map(([category, data]) => ({
+   392→        category,
+   393→        quantity: data.quantity,
+   394→        value: data.value,
+   395→      })),
+   396→      branchBreakdown: Object.entries(branchBreakdown).map(([branch, data]) => ({
+   397→        branch,
+   398→        items: data.items,
+   399→        quantity: data.quantity,
+   400→        value: data.value,
+   401→      })),
+   402→      stockLevels: inventoryItems
+   403→        .sort((a, b) => a.quantity - b.quantity)
+   404→        .slice(0, 15)
+   405→        .map((i) => ({
+   406→          name: i.product.name,
+   407→          quantity: i.quantity,
+   408→          reorderLevel: i.product.reorderLevel,
+   409→        })),
+   410→    },
+   411→    details: {
+   412→      lowStockItems: lowStockItems.map((i) => ({
+   413→        name: i.product.name,
+   414→        sku: i.product.sku,
+   415→        branch: i.branch.name,
+   416→        quantity: i.quantity,
+   417→        reorderLevel: i.product.reorderLevel,
+   418→        category: i.product.category?.name || '—',
+   419→      })),
+   420→      expiringSoon: expiringSoon.map((i) => ({
+   421→        name: i.product.name,
+   422→        branch: i.branch.name,
+   423→        quantity: i.quantity,
+   424→        expiryDate: i.expiryDate ? format(i.expiryDate, 'yyyy-MM-dd') : '—',
+   425→      })),
+   426→    },
+   427→  }
+   428→}
+   429→
+   430→// 6. Financial Report (P&L)
+   431→async function getFinancialReport(dateFrom: Date, dateTo: Date) {
+   432→  const invoices = await db.invoice.findMany({
+   433→    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+   434→    include: { items: true },
+   435→  })
+   436→
+   437→  const expenses = await db.expense.findMany({
+   438→    where: { date: { gte: dateFrom, lte: dateTo } },
+   439→  })
+   440→
+   441→  const totalRevenue = invoices.reduce((s, i) => s + i.totalAmount, 0)
+   442→  const totalSubtotal = invoices.reduce((s, i) => s + i.subtotal, 0)
+   443→  const totalTax = invoices.reduce((s, i) => s + i.tax, 0)
+   444→  const totalDiscount = invoices.reduce((s, i) => s + i.discount, 0)
+   445→  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
+   446→  const grossProfit = totalRevenue - totalExpenses
+   447→  const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+   448→
+   449→  const expenseCategories: Record<string, number> = {}
+   450→  expenses.forEach((e) => {
+   451→    expenseCategories[e.category] = (expenseCategories[e.category] || 0) + e.amount
+   452→  })
+   453→
+   454→  const revenueByType: Record<string, number> = {}
+   455→  invoices.forEach((inv) => {
+   456→    revenueByType[inv.type] = (revenueByType[inv.type] || 0) + inv.totalAmount
+   457→  })
+   458→
+   459→  const monthlyPL: Record<string, { revenue: number; expenses: number; profit: number }> = {}
+   460→  invoices.forEach((i) => {
+   461→    const month = format(i.createdAt, 'yyyy-MM')
+   462→    if (!monthlyPL[month]) monthlyPL[month] = { revenue: 0, expenses: 0, profit: 0 }
+   463→    monthlyPL[month].revenue += i.totalAmount
+   464→  })
+   465→  expenses.forEach((e) => {
+   466→    const month = format(e.date, 'yyyy-MM')
+   467→    if (!monthlyPL[month]) monthlyPL[month] = { revenue: 0, expenses: 0, profit: 0 }
+   468→    monthlyPL[month].expenses += e.amount
+   469→  })
+   470→  Object.values(monthlyPL).forEach((m) => {
+   471→    m.profit = m.revenue - m.expenses
+   472→  })
+   473→
+   474→  const itemRevenue: Record<string, { type: string; revenue: number; count: number }> = {}
+   475→  invoices.forEach((inv) => {
+   476→    inv.items.forEach((item) => {
+   477→      if (!itemRevenue[item.name]) {
+   478→        itemRevenue[item.name] = { type: item.itemType, revenue: 0, count: 0 }
+   479→      }
+   480→      itemRevenue[item.name].revenue += item.total
+   481→      itemRevenue[item.name].count += item.quantity
+   482→    })
+   483→  })
+   484→
+   485→  return {
+   486→    summary: {
+   487→      totalRevenue,
+   488→      totalSubtotal,
+   489→      totalTax,
+   490→      totalDiscount,
+   491→      totalExpenses,
+   492→      grossProfit,
+   493→      profitMargin: Math.round(profitMargin * 10) / 10,
+   494→      invoiceCount: invoices.length,
+   495→    },
+   496→    charts: {
+   497→      monthlyPL: Object.entries(monthlyPL)
+   498→        .sort(([a], [b]) => a.localeCompare(b))
+   499→        .map(([month, data]) => ({ month, ...data })),
+   500→      expenseCategories: Object.entries(expenseCategories).map(([category, amount]) => ({
+   501→        category,
+   502→        amount,
+   503→      })),
+   504→      revenueByType: Object.entries(revenueByType).map(([type, amount]) => ({ type, amount })),
+   505→    },
+   506→    details: {
+   507→      topRevenueItems: Object.entries(itemRevenue)
+   508→        .sort(([, a], [, b]) => b.revenue - a.revenue)
+   509→        .slice(0, 10)
+   510→        .map(([name, data]) => ({ name, ...data })),
+   511→      recentExpenses: expenses
+   512→        .sort((a, b) => b.date.getTime() - a.date.getTime())
+   513→        .slice(0, 10)
+   514→        .map((e) => ({
+   515→          category: e.category,
+   516→          description: e.description || '—',
+   517→          amount: e.amount,
+   518→          date: format(e.date, 'yyyy-MM-dd'),
+   519→        })),
+   520→    },
+   521→  }
+   522→}
+   523→
+   524→// 7. Loyalty Report
+   525→async function getLoyaltyReport(dateFrom: Date, dateTo: Date) {
+   526→  const transactions = await db.loyaltyTransaction.findMany({
+   527→    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+   528→    include: { customer: { select: { firstName: true, lastName: true, loyaltyTier: true } } },
+   529→  })
+   530→
+   531→  const totalPointsEarned = transactions
+   532→    .filter((t) => ['earn', 'bonus', 'referral', 'birthday'].includes(t.type))
+   533→    .reduce((s, t) => s + t.points, 0)
+   534→
+   535→  const totalPointsRedeemed = transactions
+   536→    .filter((t) => t.type === 'redeem')
+   537→    .reduce((s, t) => s + Math.abs(t.points), 0)
+   538→
+   539→  const typeBreakdown: Record<string, { count: number; points: number }> = {}
+   540→  transactions.forEach((t) => {
+   541→    if (!typeBreakdown[t.type]) typeBreakdown[t.type] = { count: 0, points: 0 }
+   542→    typeBreakdown[t.type].count++
+   543→    typeBreakdown[t.type].points += Math.abs(t.points)
+   544→  })
+   545→
+   546→  const allCustomers = await db.customer.findMany()
+   547→  const tierDist: Record<string, number> = {}
+   548→  let totalPointsInCirculation = 0
+   549→  allCustomers.forEach((c) => {
+   550→    tierDist[c.loyaltyTier] = (tierDist[c.loyaltyTier] || 0) + 1
+   551→    totalPointsInCirculation += c.loyaltyPoints
+   552→  })
+   553→
+   554→  const dailyPoints: Record<string, { earned: number; redeemed: number }> = {}
+   555→  transactions.forEach((t) => {
+   556→    const day = format(t.createdAt, 'yyyy-MM-dd')
+   557→    if (!dailyPoints[day]) dailyPoints[day] = { earned: 0, redeemed: 0 }
+   558→    if (t.type === 'redeem') {
+   559→      dailyPoints[day].redeemed += Math.abs(t.points)
+   560→    } else {
+   561→      dailyPoints[day].earned += t.points
+   562→    }
+   563→  })
+   564→
+   565→  const redemptionRate = totalPointsEarned > 0 ? (totalPointsRedeemed / totalPointsEarned) * 100 : 0
+   566→
+   567→  return {
+   568→    summary: {
+   569→      totalTransactions: transactions.length,
+   570→      totalPointsEarned,
+   571→      totalPointsRedeemed,
+   572→      totalPointsInCirculation,
+   573→      redemptionRate: Math.round(redemptionRate * 10) / 10,
+   574→      activeMembers: allCustomers.filter((c) => c.loyaltyPoints > 0).length,
+   575→    },
+   576→    charts: {
+   577→      typeBreakdown: Object.entries(typeBreakdown).map(([type, data]) => ({
+   578→        type,
+   579→        count: data.count,
+   580→        points: data.points,
+   581→      })),
+   582→      tierDistribution: Object.entries(tierDist).map(([tier, count]) => ({ tier, count })),
+   583→      dailyPointsActivity: Object.entries(dailyPoints)
+   584→        .sort(([a], [b]) => a.localeCompare(b))
+   585→        .map(([date, data]) => ({ date, ...data })),
+   586→    },
+   587→    details: {
+   588→      recentTransactions: transactions.slice(0, 20).map((t) => ({
+   589→        customer: `${t.customer.firstName} ${t.customer.lastName}`,
+   590→        type: t.type,
+   591→        points: t.points,
+   592→        description: t.description || '—',
+   593→        date: format(t.createdAt, 'yyyy-MM-dd HH:mm'),
+   594→        tier: t.customer.loyaltyTier,
+   595→      })),
+   596→    },
+   597→  }
+   598→}
+   599→
+   600→// 8. Membership Report
+   601→async function getMembershipReport(dateFrom: Date, dateTo: Date) {
+   602→  const memberships = await db.membership.findMany({
+   603→    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+   604→    include: {
+   605→      customer: { select: { firstName: true, lastName: true } },
+   606→      plan: true,
+   607→    },
+   608→  })
+   609→
+   610→  const allMemberships = await db.membership.findMany({
+   611→    include: { plan: true, customer: { select: { firstName: true, lastName: true } } },
+   612→  })
+   613→
+   614→  const activeMemberships = allMemberships.filter((m) => m.status === 'active').length
+   615→  const expiredMemberships = allMemberships.filter((m) => m.status === 'expired').length
+   616→  const cancelledMemberships = allMemberships.filter((m) => m.status === 'cancelled').length
+   617→
+   618→  const membershipRevenue = allMemberships
+   619→    .filter((m) => m.status === 'active' || m.status === 'expired')
+   620→    .reduce((s, m) => s + m.plan.price, 0)
+   621→
+   622→  const planDist: Record<string, { count: number; revenue: number }> = {}
+   623→  allMemberships.forEach((m) => {
+   624→    const planName = m.plan.name
+   625→    if (!planDist[planName]) planDist[planName] = { count: 0, revenue: 0 }
+   626→    planDist[planName].count++
+   627→    planDist[planName].revenue += m.plan.price
+   628→  })
+   629→
+   630→  const statusBreakdown: Record<string, number> = {}
+   631→  allMemberships.forEach((m) => {
+   632→    statusBreakdown[m.status] = (statusBreakdown[m.status] || 0) + 1
+   633→  })
+   634→
+   635→  const autoRenewCount = allMemberships.filter((m) => m.autoRenew).length
+   636→  const autoRenewRate = allMemberships.length > 0 ? (autoRenewCount / allMemberships.length) * 100 : 0
+   637→  const churnRate = allMemberships.length > 0 ? (cancelledMemberships / allMemberships.length) * 100 : 0
+   638→
+   639→  return {
+   640→    summary: {
+   641→      totalMemberships: allMemberships.length,
+   642→      activeMemberships,
+   643→      expiredMemberships,
+   644→      cancelledMemberships,
+   645→      membershipRevenue,
+   646→      autoRenewRate: Math.round(autoRenewRate * 10) / 10,
+   647→      churnRate: Math.round(churnRate * 10) / 10,
+   648→      newInPeriod: memberships.length,
+   649→    },
+   650→    charts: {
+   651→      planDistribution: Object.entries(planDist).map(([plan, data]) => ({
+   652→        plan,
+   653→        count: data.count,
+   654→        revenue: data.revenue,
+   655→      })),
+   656→      statusBreakdown: Object.entries(statusBreakdown).map(([status, count]) => ({
+   657→        status,
+   658→        count,
+   659→      })),
+   660→    },
+   661→    details: {
+   662→      activeMembers: allMemberships
+   663→        .filter((m) => m.status === 'active')
+   664→        .slice(0, 15)
+   665→        .map((m) => ({
+   666→          customer: `${m.customer.firstName} ${m.customer.lastName}`,
+   667→          plan: m.plan.name,
+   668→          startDate: format(m.startDate, 'yyyy-MM-dd'),
+   669→          endDate: format(m.endDate, 'yyyy-MM-dd'),
+   670→          autoRenew: m.autoRenew ? 'Yes' : 'No',
+   671→          price: m.plan.price,
+   672→        })),
+   673→    },
+   674→  }
+   675→}
+   676→
+   677→// 9. Payroll Summary
+   678→async function getPayrollReport(dateFrom: Date, dateTo: Date) {
+   679→  const payrollRuns = await db.payrollRun.findMany({
+   680→    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+   681→    include: {
+   682→      staff: { select: { firstName: true, lastName: true, role: true, commissionRate: true } },
+   683→    },
+   684→  })
+   685→
+   686→  const totalPayroll = payrollRuns.reduce((s, p) => s + p.netPay, 0)
+   687→  const totalBaseSalary = payrollRuns.reduce((s, p) => s + p.baseSalary, 0)
+   688→  const totalCommissions = payrollRuns.reduce((s, p) => s + p.commissionEarned, 0)
+   689→  const totalTips = payrollRuns.reduce((s, p) => s + p.tipsEarned, 0)
+   690→  const totalOvertime = payrollRuns.reduce((s, p) => s + p.overtimePay, 0)
+   691→  const totalBonuses = payrollRuns.reduce((s, p) => s + p.bonus, 0)
+   692→  const totalDeductions = payrollRuns.reduce((s, p) => s + p.deductions, 0)
+   693→  const totalTaxDeductions = payrollRuns.reduce((s, p) => s + p.taxDeduction, 0)
+   694→  const totalHours = payrollRuns.reduce((s, p) => s + p.hoursWorked, 0)
+   695→
+   696→  const staffBreakdown = payrollRuns.map((p) => ({
+   697→    name: `${p.staff.firstName} ${p.staff.lastName}`,
+   698→    role: p.staff.role,
+   699→    baseSalary: p.baseSalary,
+   700→    commissionEarned: p.commissionEarned,
+   701→    tipsEarned: p.tipsEarned,
+   702→    overtimePay: p.overtimePay,
+   703→    bonus: p.bonus,
+   704→    deductions: p.deductions,
+   705→    taxDeduction: p.taxDeduction,
+   706→    netPay: p.netPay,
+   707→    hoursWorked: p.hoursWorked,
+   708→    status: p.status,
+   709→  }))
+   710→
+   711→  const commissionRatio = totalBaseSalary > 0 ? (totalCommissions / totalBaseSalary) * 100 : 0
+   712→
+   713→  const statusBreakdown: Record<string, number> = {}
+   714→  payrollRuns.forEach((p) => {
+   715→    statusBreakdown[p.status] = (statusBreakdown[p.status] || 0) + 1
+   716→  })
+   717→
+   718→  return {
+   719→    summary: {
+   720→      totalPayroll,
+   721→      totalBaseSalary,
+   722→      totalCommissions,
+   723→      totalTips,
+   724→      totalOvertime,
+   725→      totalBonuses,
+   726→      totalDeductions,
+   727→      totalTaxDeductions,
+   728→      totalHours,
+   729→      staffCount: payrollRuns.length,
+   730→      commissionRatio: Math.round(commissionRatio * 10) / 10,
+   731→      avgPayPerStaff: payrollRuns.length > 0 ? Math.round(totalPayroll / payrollRuns.length) : 0,
+   732→    },
+   733→    charts: {
+   734→      staffCostBreakdown: staffBreakdown
+   735→        .sort((a, b) => b.netPay - a.netPay)
+   736→        .slice(0, 10)
+   737→        .map((s) => ({
+   738→          name: s.name,
+   739→          salary: s.baseSalary,
+   740→          commission: s.commissionEarned,
+   741→          tips: s.tipsEarned,
+   742→          other: s.overtimePay + s.bonus,
+   743→        })),
+   744→      payrollComponents: [
+   745→        { component: 'Base Salary', amount: totalBaseSalary },
+   746→        { component: 'Commissions', amount: totalCommissions },
+   747→        { component: 'Tips', amount: totalTips },
+   748→        { component: 'Overtime', amount: totalOvertime },
+   749→        { component: 'Bonuses', amount: totalBonuses },
+   750→      ],
+   751→      statusBreakdown: Object.entries(statusBreakdown).map(([status, count]) => ({
+   752→        status,
+   753→        count,
+   754→      })),
+   755→    },
+   756→    details: {
+   757→      staffBreakdown,
+   758→    },
+   759→  }
+   760→}
+   761→
+   762→// 10. Tax Report
+   763→async function getTaxReport(dateFrom: Date, dateTo: Date) {
+   764→  const invoices = await db.invoice.findMany({
+   765→    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+   766→    include: { items: true },
+   767→  })
+   768→
+   769→  const expenses = await db.expense.findMany({
+   770→    where: { date: { gte: dateFrom, lte: dateTo } },
+   771→  })
+   772→
+   773→  const taxConfigs = await db.taxConfig.findMany({ where: { isActive: true } })
+   774→
+   775→  const totalTaxCollected = invoices.reduce((s, i) => s + i.tax, 0)
+   776→  const totalRevenue = invoices.reduce((s, i) => s + i.totalAmount, 0)
+   777→  const effectiveTaxRate = totalRevenue > 0 ? (totalTaxCollected / totalRevenue) * 100 : 0
+   778→
+   779→  const taxByType: Record<string, number> = {}
+   780→  invoices.forEach((i) => {
+   781→    taxByType[i.type] = (taxByType[i.type] || 0) + i.tax
+   782→  })
+   783→
+   784→  const taxByPayment: Record<string, number> = {}
+   785→  invoices.forEach((i) => {
+   786→    taxByPayment[i.paymentMethod] = (taxByPayment[i.paymentMethod] || 0) + i.tax
+   787→  })
+   788→
+   789→  const monthlyTax: Record<string, { revenue: number; tax: number; expenses: number }> = {}
+   790→  invoices.forEach((i) => {
+   791→    const month = format(i.createdAt, 'yyyy-MM')
+   792→    if (!monthlyTax[month]) monthlyTax[month] = { revenue: 0, tax: 0, expenses: 0 }
+   793→    monthlyTax[month].revenue += i.totalAmount
+   794→    monthlyTax[month].tax += i.tax
+   795→  })
+   796→  expenses.forEach((e) => {
+   797→    const month = format(e.date, 'yyyy-MM')
+   798→    if (!monthlyTax[month]) monthlyTax[month] = { revenue: 0, tax: 0, expenses: 0 }
+   799→    monthlyTax[month].expenses += e.amount
+   800→  })
+   801→
+   802→  const taxByItemCategory: Record<string, { revenue: number; tax: number }> = {}
+   803→  invoices.forEach((inv) => {
+   804→    inv.items.forEach((item) => {
+   805→      if (!taxByItemCategory[item.itemType]) {
+   806→        taxByItemCategory[item.itemType] = { revenue: 0, tax: 0 }
+   807→      }
+   808→      taxByItemCategory[item.itemType].revenue += item.total
+   809→      if (inv.subtotal > 0) {
+   810→        const proportion = item.total / inv.subtotal
+   811→        taxByItemCategory[item.itemType].tax += inv.tax * proportion
+   812→      }
+   813→    })
+   814→  })
+   815→
+   816→  return {
+   817→    summary: {
+   818→      totalTaxCollected,
+   819→      totalRevenue,
+   820→      totalExpenses: expenses.reduce((s, e) => s + e.amount, 0),
+   821→      effectiveTaxRate: Math.round(effectiveTaxRate * 100) / 100,
+   822→      invoiceCount: invoices.length,
+   823→      taxableInvoices: invoices.filter((i) => i.tax > 0).length,
+   824→    },
+   825→    charts: {
+   826→      monthlyTax: Object.entries(monthlyTax)
+   827→        .sort(([a], [b]) => a.localeCompare(b))
+   828→        .map(([month, data]) => ({ month, ...data })),
+   829→      taxByType: Object.entries(taxByType).map(([type, tax]) => ({ type, tax })),
+   830→      taxByItemCategory: Object.entries(taxByItemCategory).map(([category, data]) => ({
+   831→        category,
+   832→        ...data,
+   833→      })),
+   834→    },
+   835→    details: {
+   836→      taxConfigs: taxConfigs.map((t) => ({
+   837→        name: t.name,
+   838→        rate: t.rate,
+   839→        type: t.type,
+   840→        appliesTo: t.appliesTo,
+   841→      })),
+   842→    },
+   843→  }
+   844→}
+   845→
+   846→export async function GET(request: NextRequest) {
+   847→  try {
+   848→    const { searchParams } = new URL(request.url)
+   849→    const type = searchParams.get('type') || 'revenue'
+   850→    const from = searchParams.get('from') || undefined
+   851→    const to = searchParams.get('to') || undefined
+   852→
+   853→    const { dateFrom, dateTo } = getDateRange(from, to)
+   854→
+   855→    let data: unknown
+   856→
+   857→    switch (type) {
+   858→      case 'revenue':
+   859→        data = await getRevenueReport(dateFrom, dateTo)
+   860→        break
+   861→      case 'appointments':
+   862→        data = await getAppointmentReport(dateFrom, dateTo)
+   863→        break
+   864→      case 'staff':
+   865→        data = await getStaffPerformanceReport(dateFrom, dateTo)
+   866→        break
+   867→      case 'customers':
+   868→        data = await getCustomerReport(dateFrom, dateTo)
+   869→        break
+   870→      case 'inventory':
+   871→        data = await getInventoryReport(dateFrom, dateTo)
+   872→        break
+   873→      case 'financial':
+   874→        data = await getFinancialReport(dateFrom, dateTo)
+   875→        break
+   876→      case 'loyalty':
+   877→        data = await getLoyaltyReport(dateFrom, dateTo)
+   878→        break
+   879→      case 'membership':
+   880→        data = await getMembershipReport(dateFrom, dateTo)
+   881→        break
+   882→      case 'payroll':
+   883→        data = await getPayrollReport(dateFrom, dateTo)
+   884→        break
+   885→      case 'tax':
+   886→        data = await getTaxReport(dateFrom, dateTo)
+   887→        break
+   888→      default:
+   889→        return NextResponse.json(
+   890→          { success: false, error: `Unknown report type: ${type}` },
+   891→          { status: 400 }
+   892→        )
+   893→    }
+   894→
+   895→    return NextResponse.json({ success: true, data })
+   896→  } catch (error) {
+   897→    console.error('Reports API error:', error)
+   898→    return NextResponse.json(
+   899→      { success: false, error: 'Failed to generate report' },
+   900→      { status: 500 }
+   901→    )
+   902→  }
+   903→}
+   904→

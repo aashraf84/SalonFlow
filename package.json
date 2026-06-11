@@ -3,11 +3,11 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "DATABASE_URL=\"postgresql://neondb_owner:npg_bIX6RYtJUC9m@ep-billowing-silence-aik4vnm2-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
-    "db:push": "prisma db push",
+    "db:push": "DATABASE_URL=\"postgresql://neondb_owner:npg_bIX6RYtJUC9m@ep-billowing-silence-aik4vnm2-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset"

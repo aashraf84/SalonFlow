@@ -23,6 +23,12 @@ export type SalonModule =
   | 'scheduling'
   | 'commissions'
   | 'waitlist'
+  | 'suppliers'
+  | 'payroll'
+  | 'coupons'
+  | 'audit-log'
+  | 'attendance'
+  | 'tips'
   | 'owner'
 
 interface SalonStore {

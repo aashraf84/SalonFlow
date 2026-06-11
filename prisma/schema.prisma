@@ -34,6 +34,7 @@ model Branch {
   expenses    Expense[]
   shifts      Shift[]
   marketingCampaigns MarketingCampaign[]
+  purchaseOrders PurchaseOrder[]
 }
 
 // Staff / Employees
@@ -59,6 +60,8 @@ model Staff {
   shifts        Shift[]
   commissions   Commission[]
   attendanceRecords Attendance[]
+  payrollRuns   PayrollRun[]
+  tips          Tip[]
 
   @@index([branchId])
 }
@@ -179,6 +182,7 @@ model Service {
   category      ServiceCategory @relation(fields: [categoryId], references: [id])
   appointments  AppointmentService[]
   serviceAddons ServiceAddon[]
+  packageItems  ServicePackageItem[]
 
   @@index([categoryId])
 }
@@ -344,7 +348,7 @@ model Product {
 
   category      ProductCategory @relation(fields: [categoryId], references: [id])
   inventoryItems InventoryItem[]
-
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([categoryId])
   @@index([sku])
@@ -551,6 +555,8 @@ model Tip {
   paymentMethod String   @default("cash") // cash, card, wallet
   status        String   @default("pending") // pending, paid
   createdAt     DateTime @default(now())
+
+  staff         Staff    @relation(fields: [staffId], references: [id])
 
   @@index([staffId])
   @@index([invoiceId])
@@ -916,4 +922,225 @@ model TenantDatabase {
   @@index([clientId])
   @@index([status])
   @@index([dbName])
+}
+
+// ============================================
+// SUPPLIER & PURCHASE ORDER MANAGEMENT
+// ============================================
+
+// Suppliers / Vendors
+model Supplier {
+  id              String   @id @default(cuid())
+  name            String
+  contactPerson   String?
+  email           String?
+  phone           String?
+  address         String?
+  city            String?
+  country         String   @default("Pakistan")
+  taxId           String?
+  paymentTerms    String   @default("net_30") // net_15, net_30, net_60, cod
+  rating          Int      @default(5) // 1-5
+  notes           String?
+  status          String   @default("active") // active, inactive, blacklisted
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  purchaseOrders  PurchaseOrder[]
+
+  @@index([name])
+  @@index([status])
+}
+
+// Purchase Orders
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  poNumber        String   @unique
+  supplierId      String
+  branchId        String
+  orderDate       DateTime @default(now())
+  expectedDate    DateTime?
+  receivedDate    DateTime?
+  status          String   @default("draft") // draft, sent, confirmed, partially_received, received, cancelled
+  subtotal        Float    @default(0)
+  taxAmount       Float    @default(0)
+  shippingCost    Float    @default(0)
+  totalAmount     Float    @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+  branch          Branch         @relation(fields: [branchId], references: [id])
+  items           PurchaseOrderItem[]
+
+  @@index([supplierId])
+  @@index([branchId])
+  @@index([status])
+}
+
+// Purchase Order Items
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  productId       String
+  quantity        Int
+  receivedQty     Int      @default(0)
+  unitCost        Float
+  total           Float
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+// ============================================
+// PAYROLL MANAGEMENT
+// ============================================
+
+// Payroll Periods
+model PayrollPeriod {
+  id              String   @id @default(cuid())
+  periodStart     DateTime
+  periodEnd       DateTime
+  payDate         DateTime
+  status          String   @default("open") // open, processing, closed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  payrollRuns     PayrollRun[]
+
+  @@unique([periodStart, periodEnd])
+  @@index([status])
+}
+
+// Individual Payroll Runs (per staff per period)
+model PayrollRun {
+  id              String   @id @default(cuid())
+  periodId        String
+  staffId         String
+  baseSalary      Float    @default(0)
+  commissionEarned Float   @default(0)
+  tipsEarned      Float    @default(0)
+  overtimePay     Float    @default(0)
+  bonus           Float    @default(0)
+  deductions      Float    @default(0)
+  taxDeduction    Float    @default(0)
+  netPay          Float    @default(0)
+  hoursWorked     Float    @default(0)
+  overtimeHours   Float    @default(0)
+  status          String   @default("pending") // pending, approved, paid
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  period          PayrollPeriod @relation(fields: [periodId], references: [id])
+  staff           Staff         @relation(fields: [staffId], references: [id])
+
+  @@unique([periodId, staffId])
+  @@index([staffId])
+  @@index([periodId])
+  @@index([status])
+}
+
+// ============================================
+// COUPONS & PROMOTIONS
+// ============================================
+
+model Coupon {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  description     String?
+  discountType    String   // percentage, fixed_amount, free_service
+  discountValue   Float
+  minPurchase     Float    @default(0)
+  maxDiscount     Float?
+  usageLimit      Int?
+  usedCount       Int      @default(0)
+  perCustomerLimit Int     @default(1)
+  applicableServices String? // comma-separated service IDs or "all"
+  applicableCategories String? // comma-separated category IDs or "all"
+  startDate       DateTime
+  endDate         DateTime
+  status          String   @default("active") // active, expired, disabled
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([code])
+  @@index([status])
+  @@index([endDate])
+}
+
+// ============================================
+// TAX CONFIGURATION
+// ============================================
+
+model TaxConfig {
+  id              String   @id @default(cuid())
+  name            String   // GST, Sales Tax, Service Tax
+  rate            Float    // percentage
+  type            String   @default("inclusive") // inclusive, exclusive
+  appliesTo       String   @default("all") // all, services, products, memberships
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ============================================
+// SERVICE PACKAGES / COMBOS
+// ============================================
+
+model ServicePackage {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  originalPrice   Float
+  packagePrice    Float
+  duration        Int      // total minutes
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  items           ServicePackageItem[]
+
+  @@index([isActive])
+}
+
+model ServicePackageItem {
+  id              String   @id @default(cuid())
+  packageId       String
+  serviceId       String
+
+  package         ServicePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  service         Service        @relation(fields: [serviceId], references: [id])
+
+  @@unique([packageId, serviceId])
+  @@index([packageId])
+}
+
+// ============================================
+// REFERRAL PROGRAM
+// ============================================
+
+model Referral {
+  id              String   @id @default(cuid())
+  referrerId      String   // customer who referred
+  referredId      String?  // new customer who was referred
+  referralCode    String   @unique
+  rewardType      String   @default("loyalty_points") // loyalty_points, discount, free_service, cash
+  rewardValue     Float
+  status          String   @default("pending") // pending, completed, rewarded, expired
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([referralCode])
+  @@index([status])
 }

@@ -1,0 +1,1144 @@
+     1→generator client {
+     2→  provider = "prisma-client-js"
+     3→}
+     4→
+     5→datasource db {
+     6→  provider = "postgresql"
+     7→  url      = env("DATABASE_URL")
+     8→}
+     9→
+    10→// ============================================
+    11→// SALONFLOW OS - Enterprise Salon & Spa DB
+    12→// ============================================
+    13→
+    14→// Multi-Branch / Workspace
+    15→model Branch {
+    16→  id          String   @id @default(cuid())
+    17→  name        String
+    18→  address     String?
+    19→  phone       String?
+    20→  email       String?
+    21→  isActive    Boolean  @default(true)
+    22→  branchCode  String   @unique
+    23→  timezone    String   @default("Asia/Karachi")
+    24→  openTime    String   @default("09:00")
+    25→  closeTime   String   @default("21:00")
+    26→  createdAt   DateTime @default(now())
+    27→  updatedAt   DateTime @updatedAt
+    28→
+    29→  staff       Staff[]
+    30→  appointments Appointment[]
+    31→  rooms       Room[]
+    32→  inventoryItems InventoryItem[]
+    33→  invoices    Invoice[]
+    34→  expenses    Expense[]
+    35→  shifts      Shift[]
+    36→  marketingCampaigns MarketingCampaign[]
+    37→  purchaseOrders PurchaseOrder[]
+    38→}
+    39→
+    40→// Staff / Employees
+    41→model Staff {
+    42→  id            String   @id @default(cuid())
+    43→  branchId      String
+    44→  firstName     String
+    45→  lastName      String
+    46→  email         String   @unique
+    47→  phone         String?
+    48→  role          String   @default("stylist") // owner, manager, receptionist, stylist, beautician, therapist
+    49→  specialization String?
+    50→  hireDate      DateTime @default(now())
+    51→  status        String   @default("active") // active, inactive, on_leave
+    52→  commissionRate Float   @default(0.10)
+    53→  avatar        String?
+    54→  bio           String?
+    55→  createdAt     DateTime @default(now())
+    56→  updatedAt     DateTime @updatedAt
+    57→
+    58→  branch        Branch   @relation(fields: [branchId], references: [id])
+    59→  appointments  Appointment[]
+    60→  shifts        Shift[]
+    61→  commissions   Commission[]
+    62→  attendanceRecords Attendance[]
+    63→  payrollRuns   PayrollRun[]
+    64→
+    65→  @@index([branchId])
+    66→}
+    67→
+    68→// Attendance
+    69→model Attendance {
+    70→  id        String   @id @default(cuid())
+    71→  staffId   String
+    72→  branchId  String
+    73→  date      DateTime
+    74→  clockIn   DateTime?
+    75→  clockOut  DateTime?
+    76→  status    String   @default("present") // present, absent, late, half_day
+    77→  notes     String?
+    78→  createdAt DateTime @default(now())
+    79→
+    80→  staff     Staff    @relation(fields: [staffId], references: [id])
+    81→
+    82→  @@index([staffId, date])
+    83→}
+    84→
+    85→// Shifts
+    86→model Shift {
+    87→  id        String   @id @default(cuid())
+    88→  staffId   String
+    89→  branchId  String
+    90→  date      DateTime
+    91→  startTime String
+    92→  endTime   String
+    93→  status    String   @default("scheduled") // scheduled, completed, cancelled
+    94→  createdAt DateTime @default(now())
+    95→
+    96→  staff     Staff    @relation(fields: [staffId], references: [id])
+    97→  branch    Branch   @relation(fields: [branchId], references: [id])
+    98→
+    99→  @@index([staffId, date])
+   100→}
+   101→
+   102→// Customers
+   103→model Customer {
+   104→  id            String   @id @default(cuid())
+   105→  firstName     String
+   106→  lastName      String
+   107→  email         String?
+   108→  phone         String
+   109→  gender        String?
+   110→  dateOfBirth   DateTime?
+   111→  address       String?
+   112→  city          String?
+   113→  notes         String?
+   114→  skinType      String?
+   115→  hairType      String?
+   116→  preferences   String?
+   117→  loyaltyTier   String   @default("silver") // silver, gold, platinum, vip
+   118→  loyaltyPoints Int      @default(0)
+   119→  totalVisits   Int      @default(0)
+   120→  lifetimeValue Float    @default(0)
+   121→  referredBy    String?
+   122→  status        String   @default("active")
+   123→  createdAt     DateTime @default(now())
+   124→  updatedAt     DateTime @updatedAt
+   125→
+   126→  appointments  Appointment[]
+   127→  invoices      Invoice[]
+   128→  memberships   Membership[]
+   129→  loyaltyTransactions LoyaltyTransaction[]
+   130→  customerDocuments CustomerDocument[]
+   131→
+   132→  @@index([phone])
+   133→  @@index([email])
+   134→}
+   135→
+   136→// Customer Documents / Photos
+   137→model CustomerDocument {
+   138→  id          String   @id @default(cuid())
+   139→  customerId  String
+   140→  type        String   // before_photo, after_photo, prescription, notes, other
+   141→  title       String
+   142→  fileUrl     String
+   143→  notes       String?
+   144→  createdAt   DateTime @default(now())
+   145→
+   146→  customer    Customer @relation(fields: [customerId], references: [id])
+   147→
+   148→  @@index([customerId])
+   149→}
+   150→
+   151→// Service Categories
+   152→model ServiceCategory {
+   153→  id          String   @id @default(cuid())
+   154→  name        String
+   155→  description String?
+   156→  icon        String?
+   157→  sortOrder   Int      @default(0)
+   158→  isActive    Boolean  @default(true)
+   159→  createdAt   DateTime @default(now())
+   160→
+   161→  services    Service[]
+   162→
+   163→  @@index([sortOrder])
+   164→}
+   165→
+   166→// Services
+   167→model Service {
+   168→  id            String   @id @default(cuid())
+   169→  categoryId    String
+   170→  name          String
+   171→  description   String?
+   172→  duration      Int      // minutes
+   173→  price         Float
+   174→  isActive      Boolean  @default(true)
+   175→  isPackage     Boolean  @default(false)
+   176→  requirements  String?
+   177→  afterCare     String?
+   178→  createdAt     DateTime @default(now())
+   179→  updatedAt     DateTime @updatedAt
+   180→
+   181→  category      ServiceCategory @relation(fields: [categoryId], references: [id])
+   182→  appointments  AppointmentService[]
+   183→  serviceAddons ServiceAddon[]
+   184→  packageItems  ServicePackageItem[]
+   185→
+   186→  @@index([categoryId])
+   187→}
+   188→
+   189→// Service Add-ons
+   190→model ServiceAddon {
+   191→  id          String   @id @default(cuid())
+   192→  serviceId   String
+   193→  name        String
+   194→  price       Float
+   195→  duration    Int      // minutes
+   196→  isActive    Boolean  @default(true)
+   197→
+   198→  service     Service  @relation(fields: [serviceId], references: [id])
+   199→
+   200→  @@index([serviceId])
+   201→}
+   202→
+   203→// Rooms
+   204→model Room {
+   205→  id            String   @id @default(cuid())
+   206→  branchId      String
+   207→  name          String
+   208→  roomType      String   @default("treatment") // treatment, consultation, waiting, spa
+   209→  capacity      Int      @default(1)
+   210→  status        String   @default("available") // available, occupied, cleaning, maintenance
+   211→  equipment     String?
+   212→  createdAt     DateTime @default(now())
+   213→
+   214→  branch        Branch   @relation(fields: [branchId], references: [id])
+   215→
+   216→  @@index([branchId])
+   217→}
+   218→
+   219→// Appointments
+   220→model Appointment {
+   221→  id            String   @id @default(cuid())
+   222→  branchId      String
+   223→  customerId    String
+   224→  staffId       String
+   225→  date          DateTime
+   226→  startTime     String
+   227→  endTime       String
+   228→  status        String   @default("scheduled") // scheduled, confirmed, in_progress, completed, cancelled, no_show
+   229→  type          String   @default("booking") // booking, walk_in
+   230→  notes         String?
+   231→  totalAmount   Float    @default(0)
+   232→  isRecurring   Boolean  @default(false)
+   233→  recurringId   String?
+   234→  reminderSent  Boolean  @default(false)
+   235→  createdAt     DateTime @default(now())
+   236→  updatedAt     DateTime @updatedAt
+   237→
+   238→  branch        Branch   @relation(fields: [branchId], references: [id])
+   239→  customer      Customer @relation(fields: [customerId], references: [id])
+   240→  staff         Staff    @relation(fields: [staffId], references: [id])
+   241→  services      AppointmentService[]
+   242→
+   243→  @@index([branchId, date])
+   244→  @@index([customerId])
+   245→  @@index([staffId, date])
+   246→}
+   247→
+   248→// Appointment-Services junction
+   249→model AppointmentService {
+   250→  id            String   @id @default(cuid())
+   251→  appointmentId String
+   252→  serviceId     String
+   253→  staffId       String?
+   254→  price         Float
+   255→  duration      Int
+   256→  status        String   @default("pending") // pending, in_progress, completed
+   257→
+   258→  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+   259→  service       Service    @relation(fields: [serviceId], references: [id])
+   260→
+   261→  @@index([appointmentId])
+   262→  @@index([serviceId])
+   263→}
+   264→
+   265→// Membership Plans
+   266→model MembershipPlan {
+   267→  id            String   @id @default(cuid())
+   268→  name          String
+   269→  description   String?
+   270→  price         Float
+   271→  duration      Int      // months
+   272→  discount      Float    @default(0) // percentage
+   273→  freeServices  Int      @default(0)
+   274→  priorityBooking Boolean @default(false)
+   275→  loyaltyBonus  Int      @default(0)
+   276→  isActive      Boolean  @default(true)
+   277→  createdAt     DateTime @default(now())
+   278→
+   279→  memberships   Membership[]
+   280→
+   281→  @@index([isActive])
+   282→}
+   283→
+   284→// Memberships (customer subscriptions)
+   285→model Membership {
+   286→  id            String   @id @default(cuid())
+   287→  customerId    String
+   288→  planId        String
+   289→  startDate     DateTime
+   290→  endDate       DateTime
+   291→  status        String   @default("active") // active, expired, cancelled, paused
+   292→  autoRenew     Boolean  @default(true)
+   293→  paymentMethod String?
+   294→  createdAt     DateTime @default(now())
+   295→  updatedAt     DateTime @updatedAt
+   296→
+   297→  customer      Customer       @relation(fields: [customerId], references: [id])
+   298→  plan          MembershipPlan @relation(fields: [planId], references: [id])
+   299→
+   300→  @@index([customerId])
+   301→  @@index([status])
+   302→}
+   303→
+   304→// Loyalty Transactions
+   305→model LoyaltyTransaction {
+   306→  id          String   @id @default(cuid())
+   307→  customerId  String
+   308→  type        String   // earn, redeem, bonus, referral, birthday
+   309→  points      Int
+   310→  description String?
+   311→  referenceId String?
+   312→  createdAt   DateTime @default(now())
+   313→
+   314→  customer    Customer @relation(fields: [customerId], references: [id])
+   315→
+   316→  @@index([customerId])
+   317→}
+   318→
+   319→// Product Categories
+   320→model ProductCategory {
+   321→  id          String   @id @default(cuid())
+   322→  name        String
+   323→  description String?
+   324→  createdAt   DateTime @default(now())
+   325→
+   326→  products    Product[]
+   327→
+   328→  @@index([name])
+   329→}
+   330→
+   331→// Products
+   332→model Product {
+   333→  id            String   @id @default(cuid())
+   334→  categoryId    String
+   335→  name          String
+   336→  description   String?
+   337→  sku           String   @unique
+   338→  brand         String?
+   339→  costPrice     Float
+   340→  sellingPrice  Float
+   341→  unit          String   @default("piece")
+   342→  reorderLevel  Int      @default(10)
+   343→  isActive      Boolean  @default(true)
+   344→  imageUrl      String?
+   345→  createdAt     DateTime @default(now())
+   346→  updatedAt     DateTime @updatedAt
+   347→
+   348→  category      ProductCategory @relation(fields: [categoryId], references: [id])
+   349→  inventoryItems InventoryItem[]
+   350→  purchaseOrderItems PurchaseOrderItem[]
+   351→
+   352→  @@index([categoryId])
+   353→  @@index([sku])
+   354→}
+   355→
+   356→// Inventory Items (per branch)
+   357→model InventoryItem {
+   358→  id            String   @id @default(cuid())
+   359→  productId     String
+   360→  branchId      String
+   361→  quantity      Int      @default(0)
+   362→  batchNumber   String?
+   363→  expiryDate    DateTime?
+   364→  lastRestocked DateTime?
+   365→  createdAt     DateTime @default(now())
+   366→  updatedAt     DateTime @updatedAt
+   367→
+   368→  product       Product  @relation(fields: [productId], references: [id])
+   369→  branch        Branch   @relation(fields: [branchId], references: [id])
+   370→
+   371→  @@unique([productId, branchId])
+   372→  @@index([branchId])
+   373→  @@index([productId])
+   374→}
+   375→
+   376→// Invoices
+   377→model Invoice {
+   378→  id              String   @id @default(cuid())
+   379→  branchId        String
+   380→  customerId      String?
+   381→  invoiceNumber   String   @unique
+   382→  type            String   @default("service") // service, product, combo
+   383→  subtotal        Float
+   384→  tax             Float    @default(0)
+   385→  discount        Float    @default(0)
+   386→  totalAmount     Float
+   387→  paymentMethod   String   @default("cash") // cash, card, wallet, split
+   388→  paymentStatus   String   @default("paid") // paid, pending, partial, refunded
+   389→  notes           String?
+   390→  createdAt       DateTime @default(now())
+   391→  updatedAt       DateTime @updatedAt
+   392→
+   393→  branch          Branch   @relation(fields: [branchId], references: [id])
+   394→  customer        Customer? @relation(fields: [customerId], references: [id])
+   395→  items           InvoiceItem[]
+   396→
+   397→  @@index([branchId, createdAt])
+   398→  @@index([customerId])
+   399→}
+   400→
+   401→// Invoice Items
+   402→model InvoiceItem {
+   403→  id          String   @id @default(cuid())
+   404→  invoiceId   String
+   405→  itemType    String   // service, product, membership, package
+   406→  itemId      String?
+   407→  name        String
+   408→  quantity    Int      @default(1)
+   409→  unitPrice   Float
+   410→  discount    Float    @default(0)
+   411→  total       Float
+   412→  staffId     String?
+   413→
+   414→  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+   415→
+   416→  @@index([invoiceId])
+   417→}
+   418→
+   419→// Expenses
+   420→model Expense {
+   421→  id          String   @id @default(cuid())
+   422→  branchId    String
+   423→  category    String   // rent, utilities, supplies, payroll, maintenance, marketing, other
+   424→  amount      Float
+   425→  description String?
+   426→  date        DateTime
+   427→  paidBy      String?
+   428→  receipt     String?
+   429→  createdAt   DateTime @default(now())
+   430→
+   431→  branch      Branch   @relation(fields: [branchId], references: [id])
+   432→
+   433→  @@index([branchId, date])
+   434→  @@index([category])
+   435→}
+   436→
+   437→// Commissions
+   438→model Commission {
+   439→  id          String   @id @default(cuid())
+   440→  staffId     String
+   441→  appointmentId String?
+   442→  amount      Float
+   443→  type        String   // service, product, referral
+   444→  status      String   @default("pending") // pending, paid
+   445→  period      String   // "2024-01"
+   446→  createdAt   DateTime @default(now())
+   447→
+   448→  staff       Staff    @relation(fields: [staffId], references: [id])
+   449→
+   450→  @@index([staffId])
+   451→  @@index([period])
+   452→}
+   453→
+   454→// Marketing Campaigns
+   455→model MarketingCampaign {
+   456→  id          String   @id @default(cuid())
+   457→  branchId    String
+   458→  name        String
+   459→  type        String   // sms, email, whatsapp, social
+   460→  channel     String   // sms, email, whatsapp, push
+   461→  subject     String?
+   462→  content     String
+   463→  targetAudience String? // all, members, new_customers, inactive, birthday_month
+   464→  status      String   @default("draft") // draft, scheduled, sent, completed
+   465→  scheduledAt DateTime?
+   466→  sentAt      DateTime?
+   467→  recipientCount Int   @default(0)
+   468→  openRate    Float    @default(0)
+   469→  clickRate   Float    @default(0)
+   470→  createdAt   DateTime @default(now())
+   471→  updatedAt   DateTime @updatedAt
+   472→
+   473→  branch      Branch   @relation(fields: [branchId], references: [id])
+   474→
+   475→  @@index([branchId])
+   476→  @@index([status])
+   477→}
+   478→
+   479→// Audit Log
+   480→model AuditLog {
+   481→  id          String   @id @default(cuid())
+   482→  userId      String?
+   483→  action      String
+   484→  entity      String
+   485→  entityId    String?
+   486→  details     String?
+   487→  ipAddress   String?
+   488→  createdAt   DateTime @default(now())
+   489→
+   490→  @@index([entity, entityId])
+   491→  @@index([createdAt])
+   492→}
+   493→
+   494→// Waitlist
+   495→model Waitlist {
+   496→  id          String   @id @default(cuid())
+   497→  branchId    String
+   498→  customerId  String
+   499→  serviceId   String?
+   500→  preferredDate DateTime
+   501→  preferredTime String?
+   502→  status      String   @default("waiting") // waiting, notified, booked, cancelled
+   503→  notes       String?
+   504→  createdAt   DateTime @default(now())
+   505→
+   506→  @@index([branchId, status])
+   507→}
+   508→
+   509→// Gift Cards
+   510→model GiftCard {
+   511→  id            String   @id @default(cuid())
+   512→  code          String   @unique
+   513→  initialBalance Float
+   514→  remainingBalance Float
+   515→  purchasedBy   String?  // customerId
+   516→  recipientName String?
+   517→  recipientEmail String?
+   518→  recipientPhone String?
+   519→  message       String?
+   520→  status        String   @default("active") // active, redeemed, expired, cancelled
+   521→  purchasedAt   DateTime @default(now())
+   522→  expiresAt     DateTime?
+   523→  createdAt     DateTime @default(now())
+   524→  updatedAt     DateTime @updatedAt
+   525→
+   526→  transactions GiftCardTransaction[]
+   527→
+   528→  @@index([code])
+   529→  @@index([status])
+   530→}
+   531→
+   532→// Gift Card Transactions
+   533→model GiftCardTransaction {
+   534→  id          String   @id @default(cuid())
+   535→  giftCardId  String
+   536→  type        String   // purchase, redeem, topup, refund
+   537→  amount      Float
+   538→  invoiceId   String?
+   539→  description String?
+   540→  createdAt   DateTime @default(now())
+   541→
+   542→  giftCard    GiftCard @relation(fields: [giftCardId], references: [id])
+   543→
+   544→  @@index([giftCardId])
+   545→}
+   546→
+   547→// Tips / Gratuity
+   548→model Tip {
+   549→  id            String   @id @default(cuid())
+   550→  invoiceId     String?
+   551→  staffId       String
+   552→  customerId    String?
+   553→  amount        Float
+   554→  paymentMethod String   @default("cash") // cash, card, wallet
+   555→  status        String   @default("pending") // pending, paid
+   556→  createdAt     DateTime @default(now())
+   557→
+   558→  @@index([staffId])
+   559→  @@index([invoiceId])
+   560→}
+   561→
+   562→// Customer Feedback / Reviews
+   563→model Feedback {
+   564→  id            String   @id @default(cuid())
+   565→  customerId    String
+   566→  appointmentId String?
+   567→  staffId       String?
+   568→  rating        Int      // 1-5
+   569→  comment       String?
+   570→  tags          String?  // comma-separated: friendly,clean,professional
+   571→  status        String   @default("published") // published, hidden, flagged
+   572→  response      String?  // salon response
+   573→  respondedAt   DateTime?
+   574→  createdAt     DateTime @default(now())
+   575→
+   576→  @@index([customerId])
+   577→  @@index([staffId])
+   578→  @@index([rating])
+   579→}
+   580→
+   581→// Notifications
+   582→model Notification {
+   583→  id          String   @id @default(cuid())
+   584→  type        String   // appointment, payment, inventory, system, marketing
+   585→  title       String
+   586→  message     String
+   587→  category    String   @default("info") // info, warning, error, success
+   588→  isRead      Boolean  @default(false)
+   589→  actionUrl   String?
+   590→  metadata    String?  // JSON string for extra data
+   591→  createdAt   DateTime @default(now())
+   592→
+   593→  @@index([isRead])
+   594→  @@index([type])
+   595→  @@index([createdAt])
+   596→}
+   597→
+   598→// Salon Settings (persisted config)
+   599→model SalonSetting {
+   600→  id          String   @id @default(cuid())
+   601→  key         String   @unique
+   602→  value       String   // JSON string
+   603→  category    String   // general, business, notifications, security, integrations
+   604→  updatedAt   DateTime @updatedAt
+   605→
+   606→  @@index([category])
+   607→  @@index([key])
+   608→}
+   609→
+   610→// ============================================
+   611→// OWNER MODULE - SaaS Client Management
+   612→// ============================================
+   613→
+   614→// ERP Clients (salon businesses that purchase this software)
+   615→model OwnerClient {
+   616→  id              String   @id @default(cuid())
+   617→  companyName     String
+   618→  slug            String   @unique
+   619→  contactPerson   String
+   620→  email           String   @unique
+   621→  phone           String
+   622→  address         String?
+   623→  city            String?
+   624→  state           String?
+   625→  country         String   @default("Pakistan")
+   626→  postalCode      String?
+   627→  website         String?
+   628→  logoUrl         String?
+   629→  industry        String   @default("Beauty & Salon")
+   630→  businessType    String?  // salon, spa, barbershop, nail_studio, wellness_center, multi_chain
+   631→  taxId           String?  // National Tax Number / CNIC
+   632→  registrationNo  String?
+   633→
+   634→  // Purchase & Billing
+   635→  purchaseType    String   @default("subscription") // subscription, one_time
+   636→  status          String   @default("active") // active, suspended, cancelled, trial
+   637→  planName        String?  // Starter, Professional, Enterprise
+   638→  billingCycle    String?  // monthly, quarterly, semi_annual, annual
+   639→  currency        String   @default("PKR")
+   640→
+   641→  // Tenant Database (Neon PostgreSQL)
+   642→  tenantDbPath    String?  // Neon database name for tenant
+   643→  tenantDbStatus  String   @default("pending") // pending, creating, active, error
+   644→
+   645→  // Timestamps
+   646→  onboardedAt     DateTime @default(now())
+   647→  lastActiveAt    DateTime @default(now())
+   648→  createdAt       DateTime @default(now())
+   649→  updatedAt       DateTime @updatedAt
+   650→
+   651→  // Relations
+   652→  modules         OwnerClientModule[]
+   653→  serialKeys      SerialKey[]
+   654→  invoices        OwnerInvoice[]
+   655→  quotations      OwnerQuotation[]
+   656→  subscriptions   OwnerClientSubscription[]
+   657→  users           OwnerClientUser[]
+   658→  tenantDatabases TenantDatabase[]
+   659→
+   660→  @@index([status])
+   661→  @@index([purchaseType])
+   662→  @@index([email])
+   663→}
+   664→
+   665→// Module Access per Client
+   666→model OwnerClientModule {
+   667→  id          String   @id @default(cuid())
+   668→  clientId    String
+   669→  moduleKey   String   // dashboard, appointments, customers, etc.
+   670→  moduleName  String   // Display name
+   671→  isActive    Boolean  @default(true)
+   672→  includedAt  DateTime @default(now())
+   673→
+   674→  client      OwnerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+   675→
+   676→  @@unique([clientId, moduleKey])
+   677→  @@index([clientId])
+   678→}
+   679→
+   680→// Serial Keys / License Keys
+   681→model SerialKey {
+   682→  id          String   @id @default(cuid())
+   683→  clientId    String?
+   684→  key         String   @unique
+   685→  type        String   @default("subscription") // subscription, one_time, trial, addon
+   686→  status      String   @default("available") // available, assigned, activated, expired, revoked
+   687→  maxDevices  Int      @default(1)
+   688→  activeDevices Int    @default(0)
+   689→  validFrom   DateTime?
+   690→  validUntil  DateTime?
+   691→  activatedAt DateTime?
+   692→  revokedAt   DateTime?
+   693→  notes       String?
+   694→  createdAt   DateTime @default(now())
+   695→  updatedAt   DateTime @updatedAt
+   696→
+   697→  client      OwnerClient? @relation(fields: [clientId], references: [id])
+   698→
+   699→  @@index([key])
+   700→  @@index([status])
+   701→  @@index([clientId])
+   702→}
+   703→
+   704→// Owner Invoices (sent to ERP clients)
+   705→model OwnerInvoice {
+   706→  id              String   @id @default(cuid())
+   707→  clientId        String
+   708→  invoiceNumber   String   @unique
+   709→  issueDate       DateTime @default(now())
+   710→  dueDate         DateTime
+   711→  subtotal        Float
+   712→  taxRate         Float    @default(0)
+   713→  taxAmount       Float    @default(0)
+   714→  discountRate    Float    @default(0)
+   715→  discountAmount  Float    @default(0)
+   716→  totalAmount     Float
+   717→  paidAmount      Float    @default(0)
+   718→  currency        String   @default("PKR")
+   719→  paymentStatus   String   @default("unpaid") // unpaid, partial, paid, overdue, cancelled
+   720→  paymentMethod   String?  // bank_transfer, cheque, online, cash
+   721→  paymentRef      String?
+   722→  paidAt          DateTime?
+   723→  notes           String?
+   724→  terms           String?
+   725→  createdAt       DateTime @default(now())
+   726→  updatedAt       DateTime @updatedAt
+   727→
+   728→  client          OwnerClient @relation(fields: [clientId], references: [id])
+   729→  items           OwnerInvoiceItem[]
+   730→
+   731→  @@index([clientId])
+   732→  @@index([paymentStatus])
+   733→  @@index([invoiceNumber])
+   734→}
+   735→
+   736→// Owner Invoice Items
+   737→model OwnerInvoiceItem {
+   738→  id          String   @id @default(cuid())
+   739→  invoiceId   String
+   740→  itemType    String   // subscription, module, setup_fee, customization, support, training, other
+   741→  description String
+   742→  quantity    Int      @default(1)
+   743→  unitPrice   Float
+   744→  discount    Float    @default(0)
+   745→  total       Float
+   746→
+   747→  invoice     OwnerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+   748→
+   749→  @@index([invoiceId])
+   750→}
+   751→
+   752→// Owner Quotations (sent to ERP clients)
+   753→model OwnerQuotation {
+   754→  id              String   @id @default(cuid())
+   755→  clientId        String
+   756→  quotationNumber String   @unique
+   757→  subject         String?
+   758→  issueDate       DateTime @default(now())
+   759→  validUntil      DateTime
+   760→  subtotal        Float
+   761→  taxRate         Float    @default(0)
+   762→  taxAmount       Float    @default(0)
+   763→  discountRate    Float    @default(0)
+   764→  discountAmount  Float    @default(0)
+   765→  totalAmount     Float
+   766→  currency        String   @default("PKR")
+   767→  status          String   @default("draft") // draft, sent, viewed, accepted, rejected, expired, converted
+   768→  notes           String?
+   769→  terms           String?
+   770→  internalNotes   String?
+   771→  convertedInvoiceId String?
+   772→  createdAt       DateTime @default(now())
+   773→  updatedAt       DateTime @updatedAt
+   774→
+   775→  client          OwnerClient @relation(fields: [clientId], references: [id])
+   776→  items           OwnerQuotationItem[]
+   777→
+   778→  @@index([clientId])
+   779→  @@index([status])
+   780→  @@index([quotationNumber])
+   781→}
+   782→
+   783→// Owner Quotation Items
+   784→model OwnerQuotationItem {
+   785→  id          String   @id @default(cuid())
+   786→  quotationId String
+   787→  itemType    String   // subscription, module, setup_fee, customization, support, training, other
+   788→  description String
+   789→  quantity    Int      @default(1)
+   790→  unitPrice   Float
+   791→  discount    Float    @default(0)
+   792→  total       Float
+   793→
+   794→  quotation   OwnerQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+   795→
+   796→  @@index([quotationId])
+   797→}
+   798→
+   799→// Client Subscriptions
+   800→model OwnerClientSubscription {
+   801→  id            String   @id @default(cuid())
+   802→  clientId      String
+   803→  planName      String
+   804→  price         Float
+   805→  billingCycle  String   // monthly, quarterly, semi_annual, annual
+   806→  startDate     DateTime
+   807→  endDate       DateTime
+   808→  status        String   @default("active") // active, expired, cancelled, paused, trial
+   809→  autoRenew     Boolean  @default(true)
+   810→  nextBillingDate DateTime?
+   811→  cancelledAt   DateTime?
+   812→  notes         String?
+   813→  createdAt     DateTime @default(now())
+   814→  updatedAt     DateTime @updatedAt
+   815→
+   816→  client        OwnerClient @relation(fields: [clientId], references: [id])
+   817→
+   818→  @@index([clientId])
+   819→  @@index([status])
+   820→}
+   821→
+   822→// Client Users (admin users for each client)
+   823→model OwnerClientUser {
+   824→  id          String   @id @default(cuid())
+   825→  clientId    String
+   826→  name        String
+   827→  email       String
+   828→  phone       String?
+   829→  role        String   @default("admin") // admin, manager, viewer
+   830→  password    String?  // Hashed password
+   831→  status      String   @default("active") // active, inactive, locked
+   832→  lastLoginAt DateTime?
+   833→  createdAt   DateTime @default(now())
+   834→  updatedAt   DateTime @updatedAt
+   835→
+   836→  client      OwnerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+   837→
+   838→  @@unique([clientId, email])
+   839→  @@index([clientId])
+   840→  @@index([email])
+   841→}
+   842→
+   843→// System Users (for login authentication)
+   844→model SystemUser {
+   845→  id            String    @id @default(cuid())
+   846→  email         String    @unique
+   847→  password      String    // bcrypt hashed
+   848→  name          String
+   849→  role          String    @default("admin") // admin, manager, staff, viewer
+   850→  avatar        String?
+   851→  phone         String?
+   852→  isActive      Boolean   @default(true)
+   853→  lastLoginAt   DateTime?
+   854→  lastLoginIp   String?
+   855→  createdAt     DateTime  @default(now())
+   856→  updatedAt     DateTime  @updatedAt
+   857→
+   858→  sessions      UserSession[]
+   859→  activations  DeviceActivation[]
+   860→
+   861→  @@index([email])
+   862→  @@index([role])
+   863→}
+   864→
+   865→// User Sessions
+   866→model UserSession {
+   867→  id          String   @id @default(cuid())
+   868→  userId      String
+   869→  token       String   @unique
+   870→  deviceInfo  String?  // browser/device info
+   871→  ipAddress   String?
+   872→  expiresAt   DateTime
+   873→  createdAt   DateTime @default(now())
+   874→
+   875→  user        SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+   876→
+   877→  @@index([userId])
+   878→  @@index([token])
+   879→  @@index([expiresAt])
+   880→}
+   881→
+   882→// Device Activation (serial key binding)
+   883→model DeviceActivation {
+   884→  id            String   @id @default(cuid())
+   885→  deviceId      String   @unique // browser fingerprint
+   886→  serialKey     String
+   887→  deviceName    String?
+   888→  browserInfo   String?
+   889→  ipAddress     String?
+   890→  activatedBy   String?  // userId
+   891→  status        String   @default("active") // active, revoked, expired
+   892→  activatedAt   DateTime @default(now())
+   893→  revokedAt     DateTime?
+   894→  expiresAt     DateTime?
+   895→
+   896→  user          SystemUser? @relation(fields: [activatedBy], references: [id])
+   897→
+   898→  @@index([deviceId])
+   899→  @@index([serialKey])
+   900→  @@index([status])
+   901→}
+   902→
+   903→// Tenant Databases
+   904→model TenantDatabase {
+   905→  id              String   @id @default(cuid())
+   906→  clientId        String
+   907→  dbName          String   // Neon database name (e.g., tenant_glamour_beauty)
+   908→  connectionString String? // Full connection URL for the tenant DB
+   909→  dbSize          Float    @default(0) // in MB
+   910→  status          String   @default("pending") // pending, creating, active, migrating, error
+   911→  schemaVersion   String   @default("1.0")
+   912→  lastMigrated    DateTime?
+   913→  errorLog        String?
+   914→  createdAt       DateTime @default(now())
+   915→  updatedAt       DateTime @updatedAt
+   916→
+   917→  client          OwnerClient @relation(fields: [clientId], references: [id])
+   918→
+   919→  @@index([clientId])
+   920→  @@index([status])
+   921→  @@index([dbName])
+   922→}
+   923→
+   924→// ============================================
+   925→// SUPPLIER & PURCHASE ORDER MANAGEMENT
+   926→// ============================================
+   927→
+   928→// Suppliers / Vendors
+   929→model Supplier {
+   930→  id              String   @id @default(cuid())
+   931→  name            String
+   932→  contactPerson   String?
+   933→  email           String?
+   934→  phone           String?
+   935→  address         String?
+   936→  city            String?
+   937→  country         String   @default("Pakistan")
+   938→  taxId           String?
+   939→  paymentTerms    String   @default("net_30") // net_15, net_30, net_60, cod
+   940→  rating          Int      @default(5) // 1-5
+   941→  notes           String?
+   942→  status          String   @default("active") // active, inactive, blacklisted
+   943→  createdAt       DateTime @default(now())
+   944→  updatedAt       DateTime @updatedAt
+   945→
+   946→  purchaseOrders  PurchaseOrder[]
+   947→
+   948→  @@index([name])
+   949→  @@index([status])
+   950→}
+   951→
+   952→// Purchase Orders
+   953→model PurchaseOrder {
+   954→  id              String   @id @default(cuid())
+   955→  poNumber        String   @unique
+   956→  supplierId      String
+   957→  branchId        String
+   958→  orderDate       DateTime @default(now())
+   959→  expectedDate    DateTime?
+   960→  receivedDate    DateTime?
+   961→  status          String   @default("draft") // draft, sent, confirmed, partially_received, received, cancelled
+   962→  subtotal        Float    @default(0)
+   963→  taxAmount       Float    @default(0)
+   964→  shippingCost    Float    @default(0)
+   965→  totalAmount     Float    @default(0)
+   966→  notes           String?
+   967→  createdAt       DateTime @default(now())
+   968→  updatedAt       DateTime @updatedAt
+   969→
+   970→  supplier        Supplier       @relation(fields: [supplierId], references: [id])
+   971→  branch          Branch         @relation(fields: [branchId], references: [id])
+   972→  items           PurchaseOrderItem[]
+   973→
+   974→  @@index([supplierId])
+   975→  @@index([branchId])
+   976→  @@index([status])
+   977→}
+   978→
+   979→// Purchase Order Items
+   980→model PurchaseOrderItem {
+   981→  id              String   @id @default(cuid())
+   982→  purchaseOrderId String
+   983→  productId       String
+   984→  quantity        Int
+   985→  receivedQty     Int      @default(0)
+   986→  unitCost        Float
+   987→  total           Float
+   988→
+   989→  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+   990→  product         Product       @relation(fields: [productId], references: [id])
+   991→
+   992→  @@index([purchaseOrderId])
+   993→  @@index([productId])
+   994→}
+   995→
+   996→// ============================================
+   997→// PAYROLL MANAGEMENT
+   998→// ============================================
+   999→
+  1000→// Payroll Periods
+  1001→model PayrollPeriod {
+  1002→  id              String   @id @default(cuid())
+  1003→  periodStart     DateTime
+  1004→  periodEnd       DateTime
+  1005→  payDate         DateTime
+  1006→  status          String   @default("open") // open, processing, closed
+  1007→  createdAt       DateTime @default(now())
+  1008→  updatedAt       DateTime @updatedAt
+  1009→
+  1010→  payrollRuns     PayrollRun[]
+  1011→
+  1012→  @@unique([periodStart, periodEnd])
+  1013→  @@index([status])
+  1014→}
+  1015→
+  1016→// Individual Payroll Runs (per staff per period)
+  1017→model PayrollRun {
+  1018→  id              String   @id @default(cuid())
+  1019→  periodId        String
+  1020→  staffId         String
+  1021→  baseSalary      Float    @default(0)
+  1022→  commissionEarned Float   @default(0)
+  1023→  tipsEarned      Float    @default(0)
+  1024→  overtimePay     Float    @default(0)
+  1025→  bonus           Float    @default(0)
+  1026→  deductions      Float    @default(0)
+  1027→  taxDeduction    Float    @default(0)
+  1028→  netPay          Float    @default(0)
+  1029→  hoursWorked     Float    @default(0)
+  1030→  overtimeHours   Float    @default(0)
+  1031→  status          String   @default("pending") // pending, approved, paid
+  1032→  paidAt          DateTime?
+  1033→  notes           String?
+  1034→  createdAt       DateTime @default(now())
+  1035→  updatedAt       DateTime @updatedAt
+  1036→
+  1037→  period          PayrollPeriod @relation(fields: [periodId], references: [id])
+  1038→  staff           Staff         @relation(fields: [staffId], references: [id])
+  1039→
+  1040→  @@unique([periodId, staffId])
+  1041→  @@index([staffId])
+  1042→  @@index([periodId])
+  1043→  @@index([status])
+  1044→}
+  1045→
+  1046→// ============================================
+  1047→// COUPONS & PROMOTIONS
+  1048→// ============================================
+  1049→
+  1050→model Coupon {
+  1051→  id              String   @id @default(cuid())
+  1052→  code            String   @unique
+  1053→  name            String
+  1054→  description     String?
+  1055→  discountType    String   // percentage, fixed_amount, free_service
+  1056→  discountValue   Float
+  1057→  minPurchase     Float    @default(0)
+  1058→  maxDiscount     Float?
+  1059→  usageLimit      Int?
+  1060→  usedCount       Int      @default(0)
+  1061→  perCustomerLimit Int     @default(1)
+  1062→  applicableServices String? // comma-separated service IDs or "all"
+  1063→  applicableCategories String? // comma-separated category IDs or "all"
+  1064→  startDate       DateTime
+  1065→  endDate         DateTime
+  1066→  status          String   @default("active") // active, expired, disabled
+  1067→  createdAt       DateTime @default(now())
+  1068→  updatedAt       DateTime @updatedAt
+  1069→
+  1070→  @@index([code])
+  1071→  @@index([status])
+  1072→  @@index([endDate])
+  1073→}
+  1074→
+  1075→// ============================================
+  1076→// TAX CONFIGURATION
+  1077→// ============================================
+  1078→
+  1079→model TaxConfig {
+  1080→  id              String   @id @default(cuid())
+  1081→  name            String   // GST, Sales Tax, Service Tax
+  1082→  rate            Float    // percentage
+  1083→  type            String   @default("inclusive") // inclusive, exclusive
+  1084→  appliesTo       String   @default("all") // all, services, products, memberships
+  1085→  isActive        Boolean  @default(true)
+  1086→  createdAt       DateTime @default(now())
+  1087→  updatedAt       DateTime @updatedAt
+  1088→
+  1089→  @@index([isActive])
+  1090→}
+  1091→
+  1092→// ============================================
+  1093→// SERVICE PACKAGES / COMBOS
+  1094→// ============================================
+  1095→
+  1096→model ServicePackage {
+  1097→  id              String   @id @default(cuid())
+  1098→  name            String
+  1099→  description     String?
+  1100→  originalPrice   Float
+  1101→  packagePrice    Float
+  1102→  duration        Int      // total minutes
+  1103→  isActive        Boolean  @default(true)
+  1104→  createdAt       DateTime @default(now())
+  1105→  updatedAt       DateTime @updatedAt
+  1106→
+  1107→  items           ServicePackageItem[]
+  1108→
+  1109→  @@index([isActive])
+  1110→}
+  1111→
+  1112→model ServicePackageItem {
+  1113→  id              String   @id @default(cuid())
+  1114→  packageId       String
+  1115→  serviceId       String
+  1116→
+  1117→  package         ServicePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  1118→  service         Service        @relation(fields: [serviceId], references: [id])
+  1119→
+  1120→  @@unique([packageId, serviceId])
+  1121→  @@index([packageId])
+  1122→}
+  1123→
+  1124→// ============================================
+  1125→// REFERRAL PROGRAM
+  1126→// ============================================
+  1127→
+  1128→model Referral {
+  1129→  id              String   @id @default(cuid())
+  1130→  referrerId      String   // customer who referred
+  1131→  referredId      String?  // new customer who was referred
+  1132→  referralCode    String   @unique
+  1133→  rewardType      String   @default("loyalty_points") // loyalty_points, discount, free_service, cash
+  1134→  rewardValue     Float
+  1135→  status          String   @default("pending") // pending, completed, rewarded, expired
+  1136→  completedAt     DateTime?
+  1137→  createdAt       DateTime @default(now())
+  1138→
+  1139→  @@index([referrerId])
+  1140→  @@index([referredId])
+  1141→  @@index([referralCode])
+  1142→  @@index([status])
+  1143→}
+  1144→
