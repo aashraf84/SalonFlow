@@ -1,0 +1,919 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback } from 'react'
+     4→     4→import {
+     5→     5→  ShoppingCart,
+     6→     6→  DollarSign,
+     7→     7→  TrendingUp,
+     8→     8→  CreditCard,
+     9→     9→  Search,
+    10→    10→  Plus,
+    11→    11→  X,
+    12→    12→  Eye,
+    13→    13→  CalendarDays,
+    14→    14→  Receipt,
+    15→    15→  Wallet,
+    16→    16→  Banknote,
+    17→    17→  User,
+    18→    18→  Package,
+    19→    19→  CheckCircle2,
+    20→    20→  Clock,
+    21→    21→  AlertCircle,
+    22→    22→} from 'lucide-react'
+    23→    23→import {
+    24→    24→  Card,
+    25→    25→  CardContent,
+    26→    26→  CardDescription,
+    27→    27→  CardHeader,
+    28→    28→  CardTitle,
+    29→    29→} from '@/components/ui/card'
+    30→    30→import { Button } from '@/components/ui/button'
+    31→    31→import { Input } from '@/components/ui/input'
+    32→    32→import { Badge } from '@/components/ui/badge'
+    33→    33→import { Label } from '@/components/ui/label'
+    34→    34→import { Skeleton } from '@/components/ui/skeleton'
+    35→    35→import { Separator } from '@/components/ui/separator'
+    36→    36→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    37→    37→import {
+    38→    38→  Table,
+    39→    39→  TableBody,
+    40→    40→  TableCell,
+    41→    41→  TableHead,
+    42→    42→  TableHeader,
+    43→    43→  TableRow,
+    44→    44→} from '@/components/ui/table'
+    45→    45→import {
+    46→    46→  Select,
+    47→    47→  SelectContent,
+    48→    48→  SelectItem,
+    49→    49→  SelectTrigger,
+    50→    50→  SelectValue,
+    51→    51→} from '@/components/ui/select'
+    52→    52→import {
+    53→    53→  Dialog,
+    54→    54→  DialogContent,
+    55→    55→  DialogHeader,
+    56→    56→  DialogTitle,
+    57→    57→} from '@/components/ui/dialog'
+    58→    58→import { ScrollArea } from '@/components/ui/scroll-area'
+    59→    59→
+    60→    60→const formatCurrency = (amount: number) => `PKR ${amount.toLocaleString()}`
+    61→    61→
+    62→    62→// Types
+    63→    63→interface InvoiceItem {
+    64→    64→  id: string
+    65→    65→  itemType: string
+    66→    66→  itemId: string | null
+    67→    67→  name: string
+    68→    68→  quantity: number
+    69→    69→  unitPrice: number
+    70→    70→  discount: number
+    71→    71→  total: number
+    72→    72→  staffId: string | null
+    73→    73→}
+    74→    74→
+    75→    75→interface Invoice {
+    76→    76→  id: string
+    77→    77→  branchId: string
+    78→    78→  customerId: string | null
+    79→    79→  invoiceNumber: string
+    80→    80→  type: string
+    81→    81→  subtotal: number
+    82→    82→  tax: number
+    83→    83→  discount: number
+    84→    84→  totalAmount: number
+    85→    85→  paymentMethod: string
+    86→    86→  paymentStatus: string
+    87→    87→  notes: string | null
+    88→    88→  createdAt: string
+    89→    89→  customer: {
+    90→    90→    id: string
+    91→    91→    firstName: string
+    92→    92→    lastName: string
+    93→    93→    phone: string
+    94→    94→    email: string | null
+    95→    95→    loyaltyTier: string
+    96→    96→  } | null
+    97→    97→  branch: {
+    98→    98→    id: string
+    99→    99→    name: string
+   100→   100→    branchCode: string
+   101→   101→  } | null
+   102→   102→  items: InvoiceItem[]
+   103→   103→}
+   104→   104→
+   105→   105→interface ServiceCategory {
+   106→   106→  id: string
+   107→   107→  name: string
+   108→   108→  description: string | null
+   109→   109→  icon: string | null
+   110→   110→  services: {
+   111→   111→    id: string
+   112→   112→    name: string
+   113→   113→    description: string | null
+   114→   114→    duration: number
+   115→   115→    price: number
+   116→   116→    isActive: boolean
+   117→   117→    isPackage: boolean
+   118→   118→  }[]
+   119→   119→}
+   120→   120→
+   121→   121→interface Customer {
+   122→   122→  id: string
+   123→   123→  firstName: string
+   124→   124→  lastName: string
+   125→   125→  phone: string
+   126→   126→  email: string | null
+   127→   127→  loyaltyTier: string
+   128→   128→}
+   129→   129→
+   130→   130→interface CartItem {
+   131→   131→  id: string
+   132→   132→  itemType: string
+   133→   133→  name: string
+   134→   134→  unitPrice: number
+   135→   135→  quantity: number
+   136→   136→}
+   137→   137→
+   138→   138→// Payment method badge styles
+   139→   139→const paymentMethodBadge: Record<string, { style: string; icon: React.ReactNode }> = {
+   140→   140→  cash: { style: 'bg-emerald-100 text-emerald-700 border-emerald-300', icon: <Banknote className="h-3 w-3" /> },
+   141→   141→  card: { style: 'bg-blue-100 text-blue-700 border-blue-300', icon: <CreditCard className="h-3 w-3" /> },
+   142→   142→  wallet: { style: 'bg-purple-100 text-purple-700 border-purple-300', icon: <Wallet className="h-3 w-3" /> },
+   143→   143→  split: { style: 'bg-gray-100 text-gray-700 border-gray-300', icon: <Receipt className="h-3 w-3" /> },
+   144→   144→}
+   145→   145→
+   146→   146→// Payment status badge styles
+   147→   147→const paymentStatusBadge: Record<string, { style: string; icon: React.ReactNode }> = {
+   148→   148→  paid: { style: 'bg-emerald-100 text-emerald-700 border-emerald-300', icon: <CheckCircle2 className="h-3 w-3" /> },
+   149→   149→  pending: { style: 'bg-amber-100 text-amber-700 border-amber-300', icon: <Clock className="h-3 w-3" /> },
+   150→   150→  partial: { style: 'bg-orange-100 text-orange-700 border-orange-300', icon: <AlertCircle className="h-3 w-3" /> },
+   151→   151→  refunded: { style: 'bg-gray-100 text-gray-600 border-gray-300', icon: <Receipt className="h-3 w-3" /> },
+   152→   152→}
+   153→   153→
+   154→   154→export function PosModule() {
+   155→   155→  const [invoices, setInvoices] = useState<Invoice[]>([])
+   156→   156→  const [categories, setCategories] = useState<ServiceCategory[]>([])
+   157→   157→  const [customers, setCustomers] = useState<Customer[]>([])
+   158→   158→  const [loading, setLoading] = useState(true)
+   159→   159→  const [activeTab, setActiveTab] = useState('invoices')
+   160→   160→
+   161→   161→  // POS state
+   162→   162→  const [cart, setCart] = useState<CartItem[]>([])
+   163→   163→  const [searchQuery, setSearchQuery] = useState('')
+   164→   164→  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+   165→   165→  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('')
+   166→   166→  const [paymentMethod, setPaymentMethod] = useState<string>('cash')
+   167→   167→  const [discountPercent, setDiscountPercent] = useState<string>('0')
+   168→   168→  const [submitting, setSubmitting] = useState(false)
+   169→   169→  const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null)
+   170→   170→
+   171→   171→  const fetchInvoices = useCallback(async () => {
+   172→   172→    try {
+   173→   173→      const res = await fetch('/api/invoices?take=50')
+   174→   174→      const json = await res.json()
+   175→   175→      if (json.success) {
+   176→   176→        setInvoices(json.data)
+   177→   177→      }
+   178→   178→    } catch (err) {
+   179→   179→      console.error('Failed to fetch invoices:', err)
+   180→   180→    }
+   181→   181→  }, [])
+   182→   182→
+   183→   183→  const fetchServices = useCallback(async () => {
+   184→   184→    try {
+   185→   185→      const res = await fetch('/api/services')
+   186→   186→      const json = await res.json()
+   187→   187→      if (json.success) {
+   188→   188→        setCategories(json.data)
+   189→   189→      }
+   190→   190→    } catch (err) {
+   191→   191→      console.error('Failed to fetch services:', err)
+   192→   192→    }
+   193→   193→  }, [])
+   194→   194→
+   195→   195→  const fetchCustomers = useCallback(async () => {
+   196→   196→    try {
+   197→   197→      const res = await fetch('/api/customers?take=100')
+   198→   198→      const json = await res.json()
+   199→   199→      if (json.success) {
+   200→   200→        setCustomers(json.data)
+   201→   201→      }
+   202→   202→    } catch (err) {
+   203→   203→      console.error('Failed to fetch customers:', err)
+   204→   204→    }
+   205→   205→  }, [])
+   206→   206→
+   207→   207→  useEffect(() => {
+   208→   208→    const load = async () => {
+   209→   209→      setLoading(true)
+   210→   210→      await Promise.all([fetchInvoices(), fetchServices(), fetchCustomers()])
+   211→   211→      setLoading(false)
+   212→   212→    }
+   213→   213→    load()
+   214→   214→  }, [fetchInvoices, fetchServices, fetchCustomers])
+   215→   215→
+   216→   216→  // Cart helpers
+   217→   217→  const addToCart = (service: { id: string; name: string; price: number }) => {
+   218→   218→    setCart((prev) => {
+   219→   219→      const existing = prev.find((item) => item.id === service.id)
+   220→   220→      if (existing) {
+   221→   221→        return prev.map((item) =>
+   222→   222→          item.id === service.id
+   223→   223→            ? { ...item, quantity: item.quantity + 1 }
+   224→   224→            : item
+   225→   225→        )
+   226→   226→      }
+   227→   227→      return [...prev, {
+   228→   228→        id: service.id,
+   229→   229→        itemType: 'service',
+   230→   230→        name: service.name,
+   231→   231→        unitPrice: service.price,
+   232→   232→        quantity: 1,
+   233→   233→      }]
+   234→   234→    })
+   235→   235→  }
+   236→   236→
+   237→   237→  const removeFromCart = (id: string) => {
+   238→   238→    setCart((prev) => prev.filter((item) => item.id !== id))
+   239→   239→  }
+   240→   240→
+   241→   241→  const updateQuantity = (id: string, quantity: number) => {
+   242→   242→    if (quantity < 1) {
+   243→   243→      removeFromCart(id)
+   244→   244→      return
+   245→   245→    }
+   246→   246→    setCart((prev) =>
+   247→   247→      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+   248→   248→    )
+   249→   249→  }
+   250→   250→
+   251→   251→  // Calculations
+   252→   252→  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+   253→   253→  const taxRate = 0.05
+   254→   254→  const tax = subtotal * taxRate
+   255→   255→  const discountValue = subtotal * (parseFloat(discountPercent) || 0) / 100
+   256→   256→  const grandTotal = subtotal + tax - discountValue
+   257→   257→
+   258→   258→  // Quick stats
+   259→   259→  const today = new Date()
+   260→   260→  const todayStr = today.toISOString().split('T')[0]
+   261→   261→  const weekAgo = new Date(today.getTime() - 7 * 86400000).toISOString().split('T')[0]
+   262→   262→  const monthAgo = new Date(today.getTime() - 30 * 86400000).toISOString().split('T')[0]
+   263→   263→
+   264→   264→  const todaySales = invoices
+   265→   265→    .filter((inv) => inv.createdAt.split('T')[0] === todayStr)
+   266→   266→    .reduce((sum, inv) => sum + inv.totalAmount, 0)
+   267→   267→  const weekSales = invoices
+   268→   268→    .filter((inv) => inv.createdAt >= weekAgo)
+   269→   269→    .reduce((sum, inv) => sum + inv.totalAmount, 0)
+   270→   270→  const monthSales = invoices
+   271→   271→    .filter((inv) => inv.createdAt >= monthAgo)
+   272→   272→    .reduce((sum, inv) => sum + inv.totalAmount, 0)
+   273→   273→  const avgTransaction = invoices.length > 0
+   274→   274→    ? invoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / invoices.length
+   275→   275→    : 0
+   276→   276→
+   277→   277→  // Complete sale
+   278→   278→  const handleCompleteSale = async () => {
+   279→   279→    if (cart.length === 0) return
+   280→   280→
+   281→   281→    // Get first branch as default
+   282→   282→    const firstBranch = invoices.find((inv) => inv.branch)?.branchId
+   283→   283→    if (!firstBranch) {
+   284→   284→      alert('No branch available. Please create a branch first.')
+   285→   285→      return
+   286→   286→    }
+   287→   287→
+   288→   288→    setSubmitting(true)
+   289→   289→    try {
+   290→   290→      const res = await fetch('/api/invoices', {
+   291→   291→        method: 'POST',
+   292→   292→        headers: { 'Content-Type': 'application/json' },
+   293→   293→        body: JSON.stringify({
+   294→   294→          branchId: firstBranch,
+   295→   295→          customerId: selectedCustomerId || null,
+   296→   296→          type: 'service',
+   297→   297→          subtotal,
+   298→   298→          tax,
+   299→   299→          discount: discountValue,
+   300→   300→          totalAmount: grandTotal,
+   301→   301→          paymentMethod,
+   302→   302→          paymentStatus: 'paid',
+   303→   303→          items: cart.map((item) => ({
+   304→   304→            itemType: item.itemType,
+   305→   305→            itemId: item.id,
+   306→   306→            name: item.name,
+   307→   307→            quantity: item.quantity,
+   308→   308→            unitPrice: item.unitPrice,
+   309→   309→            discount: 0,
+   310→   310→            total: item.unitPrice * item.quantity,
+   311→   311→          })),
+   312→   312→        }),
+   313→   313→      })
+   314→   314→      const json = await res.json()
+   315→   315→      if (json.success) {
+   316→   316→        setCart([])
+   317→   317→        setDiscountPercent('0')
+   318→   318→        setSelectedCustomerId('')
+   319→   319→        setPaymentMethod('cash')
+   320→   320→        fetchInvoices()
+   321→   321→        setActiveTab('invoices')
+   322→   322→      }
+   323→   323→    } catch (err) {
+   324→   324→      console.error('Failed to create invoice:', err)
+   325→   325→    } finally {
+   326→   326→      setSubmitting(false)
+   327→   327→    }
+   328→   328→  }
+   329→   329→
+   330→   330→  // Filter services for POS
+   331→   331→  const allServices = categories.flatMap((cat) =>
+   332→   332→    cat.services.map((svc) => ({ ...svc, categoryName: cat.name, categoryId: cat.id }))
+   333→   333→  )
+   334→   334→  const filteredServices = allServices.filter((svc) => {
+   335→   335→    const matchesSearch = !searchQuery ||
+   336→   336→      svc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+   337→   337→      svc.categoryName.toLowerCase().includes(searchQuery.toLowerCase())
+   338→   338→    const matchesCategory = selectedCategory === 'all' || svc.categoryId === selectedCategory
+   339→   339→    return matchesSearch && matchesCategory
+   340→   340→  })
+   341→   341→
+   342→   342→  if (loading) {
+   343→   343→    return (
+   344→   344→      <div className="space-y-6">
+   345→   345→        <div className="flex items-center gap-3">
+   346→   346→          <Skeleton className="h-10 w-10 rounded-lg" />
+   347→   347→          <div className="space-y-2">
+   348→   348→            <Skeleton className="h-5 w-48" />
+   349→   349→            <Skeleton className="h-3 w-32" />
+   350→   350→          </div>
+   351→   351→        </div>
+   352→   352→        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   353→   353→          {[1, 2, 3, 4].map((i) => (
+   354→   354→            <Skeleton key={i} className="h-28 rounded-lg" />
+   355→   355→          ))}
+   356→   356→        </div>
+   357→   357→        <Skeleton className="h-10 w-64" />
+   358→   358→        <Skeleton className="h-64 rounded-lg" />
+   359→   359→      </div>
+   360→   360→    )
+   361→   361→  }
+   362→   362→
+   363→   363→  return (
+   364→   364→    <div className="space-y-6">
+   365→   365→      {/* Header */}
+   366→   366→      <div className="flex items-center gap-3">
+   367→   367→        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-50 text-green-600">
+   368→   368→          <ShoppingCart className="w-5 h-5" />
+   369→   369→        </div>
+   370→   370→        <div>
+   371→   371→          <h2 className="text-lg font-bold">Point of Sale</h2>
+   372→   372→          <p className="text-sm text-muted-foreground">Billing, invoicing & payments</p>
+   373→   373→        </div>
+   374→   374→      </div>
+   375→   375→
+   376→   376→      {/* Quick Stats */}
+   377→   377→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   378→   378→        <Card>
+   379→   379→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   380→   380→            <CardTitle className="text-sm font-medium text-muted-foreground">Today&apos;s Sales</CardTitle>
+   381→   381→            <DollarSign className="h-4 w-4 text-emerald-500" />
+   382→   382→          </CardHeader>
+   383→   383→          <CardContent>
+   384→   384→            <div className="text-2xl font-bold">{formatCurrency(Math.round(todaySales))}</div>
+   385→   385→          </CardContent>
+   386→   386→        </Card>
+   387→   387→        <Card>
+   388→   388→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   389→   389→            <CardTitle className="text-sm font-medium text-muted-foreground">This Week</CardTitle>
+   390→   390→            <TrendingUp className="h-4 w-4 text-blue-500" />
+   391→   391→          </CardHeader>
+   392→   392→          <CardContent>
+   393→   393→            <div className="text-2xl font-bold">{formatCurrency(Math.round(weekSales))}</div>
+   394→   394→          </CardContent>
+   395→   395→        </Card>
+   396→   396→        <Card>
+   397→   397→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   398→   398→            <CardTitle className="text-sm font-medium text-muted-foreground">This Month</CardTitle>
+   399→   399→            <CalendarDays className="h-4 w-4 text-purple-500" />
+   400→   400→          </CardHeader>
+   401→   401→          <CardContent>
+   402→   402→            <div className="text-2xl font-bold">{formatCurrency(Math.round(monthSales))}</div>
+   403→   403→          </CardContent>
+   404→   404→        </Card>
+   405→   405→        <Card>
+   406→   406→          <CardHeader className="flex flex-row items-center justify-between pb-2">
+   407→   407→            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Transaction</CardTitle>
+   408→   408→            <CreditCard className="h-4 w-4 text-amber-500" />
+   409→   409→          </CardHeader>
+   410→   410→          <CardContent>
+   411→   411→            <div className="text-2xl font-bold">{formatCurrency(Math.round(avgTransaction))}</div>
+   412→   412→          </CardContent>
+   413→   413→        </Card>
+   414→   414→      </div>
+   415→   415→
+   416→   416→      {/* Tabs */}
+   417→   417→      <Tabs value={activeTab} onValueChange={setActiveTab}>
+   418→   418→        <TabsList>
+   419→   419→          <TabsTrigger value="invoices">Recent Invoices</TabsTrigger>
+   420→   420→          <TabsTrigger value="create">Create Invoice</TabsTrigger>
+   421→   421→        </TabsList>
+   422→   422→
+   423→   423→        {/* Recent Invoices Tab */}
+   424→   424→        <TabsContent value="invoices" className="mt-4">
+   425→   425→          <Card>
+   426→   426→            <CardHeader>
+   427→   427→              <CardTitle>Recent Invoices</CardTitle>
+   428→   428→              <CardDescription>
+   429→   429→                {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} found
+   430→   430→              </CardDescription>
+   431→   431→            </CardHeader>
+   432→   432→            <CardContent>
+   433→   433→              {invoices.length > 0 ? (
+   434→   434→                <ScrollArea className="max-h-[500px]">
+   435→   435→                  <Table>
+   436→   436→                    <TableHeader>
+   437→   437→                      <TableRow>
+   438→   438→                        <TableHead>Invoice #</TableHead>
+   439→   439→                        <TableHead>Customer</TableHead>
+   440→   440→                        <TableHead className="text-center">Items</TableHead>
+   441→   441→                        <TableHead className="text-right">Subtotal</TableHead>
+   442→   442→                        <TableHead className="text-right">Tax</TableHead>
+   443→   443→                        <TableHead className="text-right">Discount</TableHead>
+   444→   444→                        <TableHead className="text-right">Total</TableHead>
+   445→   445→                        <TableHead>Payment</TableHead>
+   446→   446→                        <TableHead>Status</TableHead>
+   447→   447→                        <TableHead>Date</TableHead>
+   448→   448→                        <TableHead className="text-right">Action</TableHead>
+   449→   449→                      </TableRow>
+   450→   450→                    </TableHeader>
+   451→   451→                    <TableBody>
+   452→   452→                      {invoices.map((invoice) => {
+   453→   453→                        const pmBadge = paymentMethodBadge[invoice.paymentMethod] || paymentMethodBadge.cash
+   454→   454→                        const psBadge = paymentStatusBadge[invoice.paymentStatus] || paymentStatusBadge.pending
+   455→   455→
+   456→   456→                        return (
+   457→   457→                          <TableRow key={invoice.id}>
+   458→   458→                            <TableCell className="font-mono text-sm font-medium">
+   459→   459→                              {invoice.invoiceNumber}
+   460→   460→                            </TableCell>
+   461→   461→                            <TableCell>
+   462→   462→                              {invoice.customer ? (
+   463→   463→                                <span className="text-sm">
+   464→   464→                                  {invoice.customer.firstName} {invoice.customer.lastName}
+   465→   465→                                </span>
+   466→   466→                              ) : (
+   467→   467→                                <span className="text-sm text-muted-foreground">Walk-in</span>
+   468→   468→                              )}
+   469→   469→                            </TableCell>
+   470→   470→                            <TableCell className="text-center text-sm">
+   471→   471→                              {invoice.items.length}
+   472→   472→                            </TableCell>
+   473→   473→                            <TableCell className="text-right text-sm">
+   474→   474→                              {formatCurrency(Math.round(invoice.subtotal))}
+   475→   475→                            </TableCell>
+   476→   476→                            <TableCell className="text-right text-sm">
+   477→   477→                              {formatCurrency(Math.round(invoice.tax))}
+   478→   478→                            </TableCell>
+   479→   479→                            <TableCell className="text-right text-sm">
+   480→   480→                              {invoice.discount > 0 ? formatCurrency(Math.round(invoice.discount)) : '—'}
+   481→   481→                            </TableCell>
+   482→   482→                            <TableCell className="text-right font-semibold text-sm">
+   483→   483→                              {formatCurrency(Math.round(invoice.totalAmount))}
+   484→   484→                            </TableCell>
+   485→   485→                            <TableCell>
+   486→   486→                              <Badge variant="outline" className={`${pmBadge.style} gap-1 capitalize`}>
+   487→   487→                                {pmBadge.icon}
+   488→   488→                                {invoice.paymentMethod}
+   489→   489→                              </Badge>
+   490→   490→                            </TableCell>
+   491→   491→                            <TableCell>
+   492→   492→                              <Badge variant="outline" className={`${psBadge.style} gap-1 capitalize`}>
+   493→   493→                                {psBadge.icon}
+   494→   494→                                {invoice.paymentStatus}
+   495→   495→                              </Badge>
+   496→   496→                            </TableCell>
+   497→   497→                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+   498→   498→                              {new Date(invoice.createdAt).toLocaleDateString('en-US', {
+   499→   499→                                month: 'short',
+   500→   500→                                day: 'numeric',
+   501→   501→                              })}
+   502→   502→                            </TableCell>
+   503→   503→                            <TableCell className="text-right">
+   504→   504→                              <Button
+   505→   505→                                variant="ghost"
+   506→   506→                                size="sm"
+   507→   507→                                className="h-7 w-7 p-0"
+   508→   508→                                onClick={() => setViewInvoice(invoice)}
+   509→   509→                              >
+   510→   510→                                <Eye className="h-3.5 w-3.5" />
+   511→   511→                              </Button>
+   512→   512→                            </TableCell>
+   513→   513→                          </TableRow>
+   514→   514→                        )
+   515→   515→                      })}
+   516→   516→                    </TableBody>
+   517→   517→                  </Table>
+   518→   518→                </ScrollArea>
+   519→   519→              ) : (
+   520→   520→                <div className="flex flex-col items-center justify-center py-12">
+   521→   521→                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-muted/50 mb-3">
+   522→   522→                    <Receipt className="h-6 w-6 text-muted-foreground" />
+   523→   523→                  </div>
+   524→   524→                  <h3 className="font-semibold">No invoices yet</h3>
+   525→   525→                  <p className="text-sm text-muted-foreground mt-1">
+   526→   526→                    Create your first invoice to get started.
+   527→   527→                  </p>
+   528→   528→                  <Button size="sm" className="mt-4" onClick={() => setActiveTab('create')}>
+   529→   529→                    <Plus className="h-4 w-4 mr-1.5" />
+   530→   530→                    Create Invoice
+   531→   531→                  </Button>
+   532→   532→                </div>
+   533→   533→              )}
+   534→   534→            </CardContent>
+   535→   535→          </Card>
+   536→   536→        </TabsContent>
+   537→   537→
+   538→   538→        {/* Create Invoice Tab - POS Style */}
+   539→   539→        <TabsContent value="create" className="mt-4">
+   540→   540→          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+   541→   541→            {/* Left Panel - Service Selector */}
+   542→   542→            <div className="lg:col-span-3 space-y-4">
+   543→   543→              <Card>
+   544→   544→                <CardHeader className="pb-3">
+   545→   545→                  <CardTitle className="text-base">Services & Products</CardTitle>
+   546→   546→                </CardHeader>
+   547→   547→                <CardContent className="space-y-3">
+   548→   548→                  {/* Search */}
+   549→   549→                  <div className="relative">
+   550→   550→                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+   551→   551→                    <Input
+   552→   552→                      placeholder="Search services..."
+   553→   553→                      className="pl-9"
+   554→   554→                      value={searchQuery}
+   555→   555→                      onChange={(e) => setSearchQuery(e.target.value)}
+   556→   556→                    />
+   557→   557→                  </div>
+   558→   558→
+   559→   559→                  {/* Category Filters */}
+   560→   560→                  <div className="flex flex-wrap gap-1.5">
+   561→   561→                    <Button
+   562→   562→                      variant={selectedCategory === 'all' ? 'default' : 'outline'}
+   563→   563→                      size="sm"
+   564→   564→                      className="h-7 text-xs"
+   565→   565→                      onClick={() => setSelectedCategory('all')}
+   566→   566→                    >
+   567→   567→                      All
+   568→   568→                    </Button>
+   569→   569→                    {categories.map((cat) => (
+   570→   570→                      <Button
+   571→   571→                        key={cat.id}
+   572→   572→                        variant={selectedCategory === cat.id ? 'default' : 'outline'}
+   573→   573→                        size="sm"
+   574→   574→                        className="h-7 text-xs"
+   575→   575→                        onClick={() => setSelectedCategory(cat.id)}
+   576→   576→                      >
+   577→   577→                        {cat.name}
+   578→   578→                      </Button>
+   579→   579→                    ))}
+   580→   580→                  </div>
+   581→   581→
+   582→   582→                  <Separator />
+   583→   583→
+   584→   584→                  {/* Service Grid */}
+   585→   585→                  <ScrollArea className="max-h-[450px]">
+   586→   586→                    {filteredServices.length > 0 ? (
+   587→   587→                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+   588→   588→                        {filteredServices.map((svc) => {
+   589→   589→                          const inCart = cart.find((item) => item.id === svc.id)
+   590→   590→                          return (
+   591→   591→                            <button
+   592→   592→                              key={svc.id}
+   593→   593→                              onClick={() => addToCart(svc)}
+   594→   594→                              className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 ${
+   595→   595→                                inCart ? 'border-primary bg-primary/5' : 'border-border'
+   596→   596→                              }`}
+   597→   597→                            >
+   598→   598→                              <div className={`flex items-center justify-center h-9 w-9 rounded-lg shrink-0 ${
+   599→   599→                                svc.isPackage ? 'bg-purple-100 text-purple-600' : 'bg-emerald-100 text-emerald-600'
+   600→   600→                              }`}>
+   601→   601→                                {svc.isPackage ? <Package className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+   602→   602→                              </div>
+   603→   603→                              <div className="flex-1 min-w-0">
+   604→   604→                                <div className="flex items-center gap-1.5">
+   605→   605→                                  <span className="text-sm font-medium truncate">{svc.name}</span>
+   606→   606→                                  {inCart && (
+   607→   607→                                    <Badge className="h-4 w-4 p-0 text-[10px] flex items-center justify-center rounded-full">
+   608→   608→                                      {inCart.quantity}
+   609→   609→                                    </Badge>
+   610→   610→                                  )}
+   611→   611→                                </div>
+   612→   612→                                <div className="flex items-center gap-2 mt-0.5">
+   613→   613→                                  <span className="text-xs text-muted-foreground">{svc.duration} min</span>
+   614→   614→                                  <span className="text-xs font-semibold">{formatCurrency(svc.price)}</span>
+   615→   615→                                </div>
+   616→   616→                              </div>
+   617→   617→                              <Plus className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+   618→   618→                            </button>
+   619→   619→                          )
+   620→   620→                        })}
+   621→   621→                      </div>
+   622→   622→                    ) : (
+   623→   623→                      <div className="flex flex-col items-center justify-center py-8">
+   624→   624→                        <Search className="h-8 w-8 text-muted-foreground mb-2" />
+   625→   625→                        <p className="text-sm text-muted-foreground">No services found</p>
+   626→   626→                      </div>
+   627→   627→                    )}
+   628→   628→                  </ScrollArea>
+   629→   629→                </CardContent>
+   630→   630→              </Card>
+   631→   631→            </div>
+   632→   632→
+   633→   633→            {/* Right Panel - Cart & Checkout */}
+   634→   634→            <div className="lg:col-span-2">
+   635→   635→              <Card className="sticky top-4">
+   636→   636→                <CardHeader className="pb-3">
+   637→   637→                  <CardTitle className="text-base flex items-center gap-2">
+   638→   638→                    <ShoppingCart className="h-4 w-4" />
+   639→   639→                    Cart
+   640→   640→                    {cart.length > 0 && (
+   641→   641→                      <Badge variant="secondary" className="ml-auto">
+   642→   642→                        {cart.reduce((sum, item) => sum + item.quantity, 0)} items
+   643→   643→                      </Badge>
+   644→   644→                    )}
+   645→   645→                  </CardTitle>
+   646→   646→                </CardHeader>
+   647→   647→                <CardContent className="space-y-4">
+   648→   648→                  {/* Cart Items */}
+   649→   649→                  {cart.length > 0 ? (
+   650→   650→                    <ScrollArea className="max-h-[200px]">
+   651→   651→                      <div className="space-y-2">
+   652→   652→                        {cart.map((item) => (
+   653→   653→                          <div
+   654→   654→                            key={item.id}
+   655→   655→                            className="flex items-center gap-2 rounded-lg border p-2.5"
+   656→   656→                          >
+   657→   657→                            <div className="flex-1 min-w-0">
+   658→   658→                              <p className="text-sm font-medium truncate">{item.name}</p>
+   659→   659→                              <p className="text-xs text-muted-foreground">
+   660→   660→                                {formatCurrency(item.unitPrice)} each
+   661→   661→                              </p>
+   662→   662→                            </div>
+   663→   663→                            <div className="flex items-center gap-1">
+   664→   664→                              <Button
+   665→   665→                                variant="outline"
+   666→   666→                                size="sm"
+   667→   667→                                className="h-6 w-6 p-0"
+   668→   668→                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+   669→   669→                              >
+   670→   670→                                -
+   671→   671→                              </Button>
+   672→   672→                              <span className="text-sm font-medium w-6 text-center">
+   673→   673→                                {item.quantity}
+   674→   674→                              </span>
+   675→   675→                              <Button
+   676→   676→                                variant="outline"
+   677→   677→                                size="sm"
+   678→   678→                                className="h-6 w-6 p-0"
+   679→   679→                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+   680→   680→                              >
+   681→   681→                                +
+   682→   682→                              </Button>
+   683→   683→                            </div>
+   684→   684→                            <span className="text-sm font-semibold w-20 text-right">
+   685→   685→                              {formatCurrency(item.unitPrice * item.quantity)}
+   686→   686→                            </span>
+   687→   687→                            <Button
+   688→   688→                              variant="ghost"
+   689→   689→                              size="sm"
+   690→   690→                              className="h-6 w-6 p-0 text-muted-foreground hover:text-red-500"
+   691→   691→                              onClick={() => removeFromCart(item.id)}
+   692→   692→                            >
+   693→   693→                              <X className="h-3.5 w-3.5" />
+   694→   694→                            </Button>
+   695→   695→                          </div>
+   696→   696→                        ))}
+   697→   697→                      </div>
+   698→   698→                    </ScrollArea>
+   699→   699→                  ) : (
+   700→   700→                    <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+   701→   701→                      <ShoppingCart className="h-8 w-8 mb-2" />
+   702→   702→                      <p className="text-sm">Cart is empty</p>
+   703→   703→                      <p className="text-xs">Click a service to add it</p>
+   704→   704→                    </div>
+   705→   705→                  )}
+   706→   706→
+   707→   707→                  <Separator />
+   708→   708→
+   709→   709→                  {/* Totals */}
+   710→   710→                  <div className="space-y-2">
+   711→   711→                    <div className="flex justify-between text-sm">
+   712→   712→                      <span className="text-muted-foreground">Subtotal</span>
+   713→   713→                      <span className="font-medium">{formatCurrency(Math.round(subtotal))}</span>
+   714→   714→                    </div>
+   715→   715→                    <div className="flex justify-between text-sm">
+   716→   716→                      <span className="text-muted-foreground">Tax (5%)</span>
+   717→   717→                      <span className="font-medium">{formatCurrency(Math.round(tax))}</span>
+   718→   718→                    </div>
+   719→   719→                    <div className="flex items-center justify-between text-sm">
+   720→   720→                      <div className="flex items-center gap-2">
+   721→   721→                        <span className="text-muted-foreground">Discount</span>
+   722→   722→                        <Input
+   723→   723→                          type="number"
+   724→   724→                          min="0"
+   725→   725→                          max="100"
+   726→   726→                          value={discountPercent}
+   727→   727→                          onChange={(e) => setDiscountPercent(e.target.value)}
+   728→   728→                          className="h-6 w-14 text-xs text-center p-0"
+   729→   729→                          disabled={cart.length === 0}
+   730→   730→                        />
+   731→   731→                        <span className="text-xs text-muted-foreground">%</span>
+   732→   732→                      </div>
+   733→   733→                      <span className="font-medium text-red-600">
+   734→   734→                        {discountValue > 0 ? `-${formatCurrency(Math.round(discountValue))}` : '—'}
+   735→   735→                      </span>
+   736→   736→                    </div>
+   737→   737→                    <Separator />
+   738→   738→                    <div className="flex justify-between items-center">
+   739→   739→                      <span className="font-semibold">Grand Total</span>
+   740→   740→                      <span className="text-xl font-bold">{formatCurrency(Math.round(grandTotal))}</span>
+   741→   741→                    </div>
+   742→   742→                  </div>
+   743→   743→
+   744→   744→                  <Separator />
+   745→   745→
+   746→   746→                  {/* Customer Selector */}
+   747→   747→                  <div className="space-y-2">
+   748→   748→                    <Label className="text-sm">Customer</Label>
+   749→   749→                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+   750→   750→                      <SelectTrigger className="h-9">
+   751→   751→                        <SelectValue placeholder="Select customer (optional)" />
+   752→   752→                      </SelectTrigger>
+   753→   753→                      <SelectContent>
+   754→   754→                        <SelectItem value="walk-in">Walk-in Customer</SelectItem>
+   755→   755→                        {customers.map((customer) => (
+   756→   756→                          <SelectItem key={customer.id} value={customer.id}>
+   757→   757→                            <div className="flex items-center gap-2">
+   758→   758→                              <User className="h-3 w-3" />
+   759→   759→                              {customer.firstName} {customer.lastName} — {customer.phone}
+   760→   760→                            </div>
+   761→   761→                          </SelectItem>
+   762→   762→                        ))}
+   763→   763→                      </SelectContent>
+   764→   764→                    </Select>
+   765→   765→                  </div>
+   766→   766→
+   767→   767→                  {/* Payment Method */}
+   768→   768→                  <div className="space-y-2">
+   769→   769→                    <Label className="text-sm">Payment Method</Label>
+   770→   770→                    <div className="grid grid-cols-3 gap-2">
+   771→   771→                      {[
+   772→   772→                        { value: 'cash', label: 'Cash', icon: <Banknote className="h-4 w-4" /> },
+   773→   773→                        { value: 'card', label: 'Card', icon: <CreditCard className="h-4 w-4" /> },
+   774→   774→                        { value: 'wallet', label: 'Wallet', icon: <Wallet className="h-4 w-4" /> },
+   775→   775→                      ].map((method) => (
+   776→   776→                        <Button
+   777→   777→                          key={method.value}
+   778→   778→                          variant={paymentMethod === method.value ? 'default' : 'outline'}
+   779→   779→                          size="sm"
+   780→   780→                          className="h-9 gap-1.5"
+   781→   781→                          onClick={() => setPaymentMethod(method.value)}
+   782→   782→                        >
+   783→   783→                          {method.icon}
+   784→   784→                          {method.label}
+   785→   785→                        </Button>
+   786→   786→                      ))}
+   787→   787→                    </div>
+   788→   788→                  </div>
+   789→   789→
+   790→   790→                  {/* Complete Sale */}
+   791→   791→                  <Button
+   792→   792→                    className="w-full h-11"
+   793→   793→                    size="lg"
+   794→   794→                    disabled={cart.length === 0 || submitting}
+   795→   795→                    onClick={handleCompleteSale}
+   796→   796→                  >
+   797→   797→                    {submitting ? (
+   798→   798→                      <>
+   799→   799→                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+   800→   800→                        Processing...
+   801→   801→                      </>
+   802→   802→                    ) : (
+   803→   803→                      <>
+   804→   804→                        <CheckCircle2 className="h-4 w-4 mr-2" />
+   805→   805→                        Complete Sale — {formatCurrency(Math.round(grandTotal))}
+   806→   806→                      </>
+   807→   807→                    )}
+   808→   808→                  </Button>
+   809→   809→                </CardContent>
+   810→   810→              </Card>
+   811→   811→            </div>
+   812→   812→          </div>
+   813→   813→        </TabsContent>
+   814→   814→      </Tabs>
+   815→   815→
+   816→   816→      {/* View Invoice Dialog */}
+   817→   817→      <Dialog open={!!viewInvoice} onOpenChange={(open) => !open && setViewInvoice(null)}>
+   818→   818→        <DialogContent className="sm:max-w-[550px]">
+   819→   819→          <DialogHeader>
+   820→   820→            <DialogTitle className="flex items-center gap-2">
+   821→   821→              <Receipt className="h-5 w-5" />
+   822→   822→              Invoice {viewInvoice?.invoiceNumber}
+   823→   823→            </DialogTitle>
+   824→   824→          </DialogHeader>
+   825→   825→          {viewInvoice && (
+   826→   826→            <div className="space-y-4">
+   827→   827→              {/* Invoice Header */}
+   828→   828→              <div className="flex justify-between items-start">
+   829→   829→                <div>
+   830→   830→                  <p className="text-sm text-muted-foreground">Customer</p>
+   831→   831→                  <p className="font-medium">
+   832→   832→                    {viewInvoice.customer
+   833→   833→                      ? `${viewInvoice.customer.firstName} ${viewInvoice.customer.lastName}`
+   834→   834→                      : 'Walk-in Customer'}
+   835→   835→                  </p>
+   836→   836→                  {viewInvoice.customer && (
+   837→   837→                    <p className="text-xs text-muted-foreground">{viewInvoice.customer.phone}</p>
+   838→   838→                  )}
+   839→   839→                </div>
+   840→   840→                <div className="text-right">
+   841→   841→                  <p className="text-sm text-muted-foreground">Date</p>
+   842→   842→                  <p className="font-medium">
+   843→   843→                    {new Date(viewInvoice.createdAt).toLocaleDateString('en-US', {
+   844→   844→                      year: 'numeric',
+   845→   845→                      month: 'long',
+   846→   846→                      day: 'numeric',
+   847→   847→                    })}
+   848→   848→                  </p>
+   849→   849→                </div>
+   850→   850→              </div>
+   851→   851→
+   852→   852→              <Separator />
+   853→   853→
+   854→   854→              {/* Items */}
+   855→   855→              <div className="space-y-2">
+   856→   856→                <p className="text-sm font-semibold">Items</p>
+   857→   857→                {viewInvoice.items.map((item) => (
+   858→   858→                  <div key={item.id} className="flex justify-between text-sm">
+   859→   859→                    <div>
+   860→   860→                      <span className="font-medium">{item.name}</span>
+   861→   861→                      <span className="text-muted-foreground ml-1">x{item.quantity}</span>
+   862→   862→                    </div>
+   863→   863→                    <span>{formatCurrency(Math.round(item.total))}</span>
+   864→   864→                  </div>
+   865→   865→                ))}
+   866→   866→              </div>
+   867→   867→
+   868→   868→              <Separator />
+   869→   869→
+   870→   870→              {/* Totals */}
+   871→   871→              <div className="space-y-1.5">
+   872→   872→                <div className="flex justify-between text-sm">
+   873→   873→                  <span className="text-muted-foreground">Subtotal</span>
+   874→   874→                  <span>{formatCurrency(Math.round(viewInvoice.subtotal))}</span>
+   875→   875→                </div>
+   876→   876→                <div className="flex justify-between text-sm">
+   877→   877→                  <span className="text-muted-foreground">Tax</span>
+   878→   878→                  <span>{formatCurrency(Math.round(viewInvoice.tax))}</span>
+   879→   879→                </div>
+   880→   880→                {viewInvoice.discount > 0 && (
+   881→   881→                  <div className="flex justify-between text-sm">
+   882→   882→                    <span className="text-muted-foreground">Discount</span>
+   883→   883→                    <span className="text-red-600">-{formatCurrency(Math.round(viewInvoice.discount))}</span>
+   884→   884→                  </div>
+   885→   885→                )}
+   886→   886→                <Separator />
+   887→   887→                <div className="flex justify-between font-semibold text-lg">
+   888→   888→                  <span>Total</span>
+   889→   889→                  <span>{formatCurrency(Math.round(viewInvoice.totalAmount))}</span>
+   890→   890→                </div>
+   891→   891→              </div>
+   892→   892→
+   893→   893→              <Separator />
+   894→   894→
+   895→   895→              {/* Payment Info */}
+   896→   896→              <div className="flex items-center justify-between">
+   897→   897→                <div className="flex items-center gap-2">
+   898→   898→                  <span className="text-sm text-muted-foreground">Payment:</span>
+   899→   899→                  <Badge variant="outline" className={`${paymentMethodBadge[viewInvoice.paymentMethod]?.style || ''} gap-1 capitalize`}>
+   900→   900→                    {paymentMethodBadge[viewInvoice.paymentMethod]?.icon}
+   901→   901→                    {viewInvoice.paymentMethod}
+   902→   902→                  </Badge>
+   903→   903→                </div>
+   904→   904→                <div className="flex items-center gap-2">
+   905→   905→                  <span className="text-sm text-muted-foreground">Status:</span>
+   906→   906→                  <Badge variant="outline" className={`${paymentStatusBadge[viewInvoice.paymentStatus]?.style || ''} gap-1 capitalize`}>
+   907→   907→                    {paymentStatusBadge[viewInvoice.paymentStatus]?.icon}
+   908→   908→                    {viewInvoice.paymentStatus}
+   909→   909→                  </Badge>
+   910→   910→                </div>
+   911→   911→              </div>
+   912→   912→            </div>
+   913→   913→          )}
+   914→   914→        </DialogContent>
+   915→   915→      </Dialog>
+   916→   916→    </div>
+   917→   917→  )
+   918→   918→}
+   919→   919→
