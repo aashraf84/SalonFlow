@@ -244,15 +244,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* ─── Background ──────────────────────────────────────────────────────── */}
-      <div className="absolute inset-0">
-        {/* Golden Gate Bridge Image - macOS Sonoma wallpaper */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105"
-          style={{ backgroundImage: 'url(/golden-gate-bg.png)' }}
-        />
-        {/* Subtle dark gradient at bottom for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
-      </div>
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-rose-950 to-slate-900" />
 
       {/* ─── Content ─────────────────────────────────────────────────────────── */}
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4">
