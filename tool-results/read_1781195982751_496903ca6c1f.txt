@@ -1,0 +1,1086 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+     4→     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→     5→import { cn } from '@/lib/utils'
+     6→     6→import { GlassCard, AnimatedMetricCard } from '@/components/salon/glass-card'
+     7→     7→import { Button } from '@/components/ui/button'
+     8→     8→import { Input } from '@/components/ui/input'
+     9→     9→import { Label } from '@/components/ui/label'
+    10→    10→import { Badge } from '@/components/ui/badge'
+    11→    11→import { Separator } from '@/components/ui/separator'
+    12→    12→import { ScrollArea } from '@/components/ui/scroll-area'
+    13→    13→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+    14→    14→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    15→    15→import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+    16→    16→import { Skeleton } from '@/components/ui/skeleton'
+    17→    17→import {
+    18→    18→  ShoppingCart, DollarSign, CreditCard, Search, Plus, Minus, X, Eye,
+    19→    19→  Receipt, Wallet, Banknote, User, CheckCircle2, Clock, AlertCircle,
+    20→    20→  ScanBarcode, Tag, Percent, Gift, Star, Printer, ChevronRight,
+    21→    21→  Trash2, Loader2, Scissors, Package, ArrowRight, Sparkles, Hash,
+    22→    22→  ShoppingBag, Zap, TrendingUp, LayoutGrid, List, ArrowUpDown,
+    23→    23→  Timer, Users, HandCoins, CircleDot, Flame, Gem
+    24→    24→} from 'lucide-react'
+    25→    25→import { toast } from 'sonner'
+    26→    26→
+    27→    27→// ─── Types ──────────────────────────────────────────────────────────────────
+    28→    28→interface ServiceType {
+    29→    29→  id: string; name: string; description?: string; duration: number; price: number; isActive: boolean; isPackage: boolean
+    30→    30→  category?: { id: string; name: string; icon?: string }
+    31→    31→}
+    32→    32→
+    33→    33→interface CategoryType {
+    34→    34→  id: string; name: string; description?: string; icon?: string; services: ServiceType[]
+    35→    35→}
+    36→    36→
+    37→    37→interface CustomerType {
+    38→    38→  id: string; firstName: string; lastName: string; phone: string; email?: string; loyaltyTier: string; loyaltyPoints: number
+    39→    39→}
+    40→    40→
+    41→    41→interface CartItem {
+    42→    42→  id: string; itemType: string; name: string; unitPrice: number; quantity: number
+    43→    43→  duration?: number; staffId?: string; discount: number; notes?: string
+    44→    44→  category?: string
+    45→    45→}
+    46→    46→
+    47→    47→interface InvoiceType {
+    48→    48→  id: string; branchId: string; customerId?: string; invoiceNumber: string; type: string
+    49→    49→  subtotal: number; tax: number; discount: number; totalAmount: number
+    50→    50→  paymentMethod: string; paymentStatus: string; notes?: string; createdAt: string
+    51→    51→  customer?: { id: string; firstName: string; lastName: string; phone: string; email?: string; loyaltyTier: string }
+    52→    52→  branch?: { id: string; name: string; branchCode: string }
+    53→    53→  items: InvoiceItemType[]
+    54→    54→}
+    55→    55→
+    56→    56→interface InvoiceItemType {
+    57→    57→  id: string; itemType: string; itemId?: string; name: string; quantity: number
+    58→    58→  unitPrice: number; discount: number; total: number; staffId?: string
+    59→    59→}
+    60→    60→
+    61→    61→// ─── Helpers ────────────────────────────────────────────────────────────────
+    62→    62→const formatPKR = (amount: number) => `Rs. ${amount.toLocaleString('en-PK')}`
+    63→    63→const formatDate = (d: string) => new Date(d).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    64→    64→
+    65→    65→const categoryIcons: Record<string, string> = {
+    66→    66→  'Hair': '✂️', 'Nails': '💅', 'Skin': '✨', 'Makeup': '💄', 'Spa': '🧖', 'Body': '💆',
+    67→    67→  'Bridal': '👰', 'Men': '🧔', 'Packages': '📦', 'Products': '🛍️', 'Other': '✨'
+    68→    68→}
+    69→    69→
+    70→    70→const paymentMethods = [
+    71→    71→  { value: 'cash', label: 'Cash', icon: Banknote, color: 'bg-emerald-500' },
+    72→    72→  { value: 'card', label: 'Card', icon: CreditCard, color: 'bg-blue-500' },
+    73→    73→  { value: 'wallet', label: 'Wallet', icon: Wallet, color: 'bg-purple-500' },
+    74→    74→  { value: 'split', label: 'Split', icon: Receipt, color: 'bg-amber-500' },
+    75→    75→]
+    76→    76→
+    77→    77→// ─── Main POS Component ─────────────────────────────────────────────────────
+    78→    78→export function PosModule() {
+    79→    79→  // Data
+    80→    80→  const [invoices, setInvoices] = useState<InvoiceType[]>([])
+    81→    81→  const [categories, setCategories] = useState<CategoryType[]>([])
+    82→    82→  const [customers, setCustomers] = useState<CustomerType[]>([])
+    83→    83→  const [loading, setLoading] = useState(true)
+    84→    84→
+    85→    85→  // POS State
+    86→    86→  const [cart, setCart] = useState<CartItem[]>([])
+    87→    87→  const [searchQuery, setSearchQuery] = useState('')
+    88→    88→  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+    89→    89→  const [selectedCustomer, setSelectedCustomer] = useState<CustomerType | null>(null)
+    90→    90→  const [showCustomerPicker, setShowCustomerPicker] = useState(false)
+    91→    91→  const [customerSearch, setCustomerSearch] = useState('')
+    92→    92→  const [paymentMethod, setPaymentMethod] = useState('cash')
+    93→    93→  const [discountPercent, setDiscountPercent] = useState(0)
+    94→    94→  const [customDiscount, setCustomDiscount] = useState('')
+    95→    95→  const [submitting, setSubmitting] = useState(false)
+    96→    96→  const [showCheckout, setShowCheckout] = useState(false)
+    97→    97→  const [showReceipt, setShowReceipt] = useState(false)
+    98→    98→  const [completedInvoice, setCompletedInvoice] = useState<InvoiceType | null>(null)
+    99→    99→  const [viewMode, setViewMode] = useState<'pos' | 'history'>('pos')
+   100→   100→  const [productView, setProductView] = useState<'grid' | 'list'>('grid')
+   101→   101→
+   102→   102→  // ─── Data Fetching ──────────────────────────────────────────────────────
+   103→   103→  const fetchInvoices = useCallback(async () => {
+   104→   104→    try {
+   105→   105→      const res = await fetch('/api/invoices?take=100')
+   106→   106→      const json = await res.json()
+   107→   107→      if (json.success) setInvoices(json.data)
+   108→   108→    } catch { toast.error('Failed to load invoices') }
+   109→   109→  }, [])
+   110→   110→
+   111→   111→  const fetchServices = useCallback(async () => {
+   112→   112→    try {
+   113→   113→      const res = await fetch('/api/services')
+   114→   114→      const json = await res.json()
+   115→   115→      if (json.success) setCategories(json.data)
+   116→   116→    } catch { toast.error('Failed to load services') }
+   117→   117→  }, [])
+   118→   118→
+   119→   119→  const fetchCustomers = useCallback(async () => {
+   120→   120→    try {
+   121→   121→      const res = await fetch('/api/customers?take=200')
+   122→   122→      const json = await res.json()
+   123→   123→      if (json.success) setCustomers(json.data)
+   124→   124→    } catch { toast.error('Failed to load customers') }
+   125→   125→  }, [])
+   126→   126→
+   127→   127→  useEffect(() => {
+   128→   128→    const load = async () => {
+   129→   129→      setLoading(true)
+   130→   130→      await Promise.all([fetchInvoices(), fetchServices(), fetchCustomers()])
+   131→   131→      setLoading(false)
+   132→   132→    }
+   133→   133→    load()
+   134→   134→  }, [fetchInvoices, fetchServices, fetchCustomers])
+   135→   135→
+   136→   136→  // ─── Cart Logic ─────────────────────────────────────────────────────────
+   137→   137→  const allServices = useMemo(() =>
+   138→   138→    categories.flatMap(cat => cat.services.map(svc => ({ ...svc, categoryName: cat.name, categoryId: cat.id }))),
+   139→   139→    [categories]
+   140→   140→  )
+   141→   141→
+   142→   142→  const filteredServices = useMemo(() =>
+   143→   143→    allServices.filter(svc => {
+   144→   144→      const q = searchQuery.toLowerCase()
+   145→   145→      const matchesSearch = !q || svc.name.toLowerCase().includes(q) || svc.categoryName.toLowerCase().includes(q)
+   146→   146→      const matchesCat = selectedCategory === 'all' || svc.categoryId === selectedCategory
+   147→   147→      return matchesSearch && matchesCat && svc.isActive
+   148→   148→    }),
+   149→   149→    [allServices, searchQuery, selectedCategory]
+   150→   150→  )
+   151→   151→
+   152→   152→  const addToCart = useCallback((service: ServiceType & { categoryName?: string; categoryId?: string }) => {
+   153→   153→    setCart(prev => {
+   154→   154→      const existing = prev.find(item => item.id === service.id)
+   155→   155→      if (existing) {
+   156→   156→        return prev.map(item =>
+   157→   157→          item.id === service.id ? { ...item, quantity: item.quantity + 1 } : item
+   158→   158→        )
+   159→   159→      }
+   160→   160→      return [...prev, {
+   161→   161→        id: service.id,
+   162→   162→        itemType: 'service',
+   163→   163→        name: service.name,
+   164→   164→        unitPrice: service.price,
+   165→   165→        quantity: 1,
+   166→   166→        duration: service.duration,
+   167→   167→        discount: 0,
+   168→   168→        category: service.categoryName
+   169→   169→      }]
+   170→   170→    })
+   171→   171→    toast.success(`${service.name} added`, { duration: 1200 })
+   172→   172→  }, [])
+   173→   173→
+   174→   174→  const removeFromCart = useCallback((id: string) => {
+   175→   175→    setCart(prev => prev.filter(item => item.id !== id))
+   176→   176→  }, [])
+   177→   177→
+   178→   178→  const updateQuantity = useCallback((id: string, delta: number) => {
+   179→   179→    setCart(prev => {
+   180→   180→      const item = prev.find(i => i.id === id)
+   181→   181→      if (!item) return prev
+   182→   182→      const newQty = item.quantity + delta
+   183→   183→      if (newQty < 1) return prev.filter(i => i.id !== id)
+   184→   184→      return prev.map(i => i.id === id ? { ...i, quantity: newQty } : i)
+   185→   185→    })
+   186→   186→  }, [])
+   187→   187→
+   188→   188→  const clearCart = useCallback(() => {
+   189→   189→    setCart([])
+   190→   190→    setDiscountPercent(0)
+   191→   191→    setCustomDiscount('')
+   192→   192→    setSelectedCustomer(null)
+   193→   193→  }, [])
+   194→   194→
+   195→   195→  // ─── Calculations ───────────────────────────────────────────────────────
+   196→   196→  const subtotal = useMemo(() => cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity) - item.discount, 0), [cart])
+   197→   197→  const taxRate = 0.05
+   198→   198→  const tax = subtotal * taxRate
+   199→   199→  const discountValue = subtotal * discountPercent / 100
+   200→   200→  const grandTotal = subtotal + tax - discountValue
+   201→   201→  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
+   202→   202→  const totalDuration = cart.reduce((sum, item) => sum + (item.duration || 0) * item.quantity, 0)
+   203→   203→
+   204→   204→  // Quick stats
+   205→   205→  const todayStr = new Date().toISOString().split('T')[0]
+   206→   206→  const todaySales = invoices.filter(inv => inv.createdAt.split('T')[0] === todayStr && inv.paymentStatus === 'paid').reduce((s, i) => s + i.totalAmount, 0)
+   207→   207→  const todayTransactions = invoices.filter(inv => inv.createdAt.split('T')[0] === todayStr && inv.paymentStatus === 'paid').length
+   208→   208→
+   209→   209→  // ─── Complete Sale ──────────────────────────────────────────────────────
+   210→   210→  const handleCompleteSale = async () => {
+   211→   211→    if (cart.length === 0) { toast.error('Cart is empty'); return }
+   212→   212→    const firstBranch = invoices.find(inv => inv.branch)?.branchId
+   213→   213→    if (!firstBranch) { toast.error('No branch found. Create a branch first.'); return }
+   214→   214→
+   215→   215→    setSubmitting(true)
+   216→   216→    try {
+   217→   217→      const res = await fetch('/api/invoices', {
+   218→   218→        method: 'POST',
+   219→   219→        headers: { 'Content-Type': 'application/json' },
+   220→   220→        body: JSON.stringify({
+   221→   221→          branchId: firstBranch,
+   222→   222→          customerId: selectedCustomer?.id || null,
+   223→   223→          type: 'service',
+   224→   224→          subtotal,
+   225→   225→          tax,
+   226→   226→          discount: discountValue,
+   227→   227→          totalAmount: grandTotal,
+   228→   228→          paymentMethod,
+   229→   229→          paymentStatus: 'paid',
+   230→   230→          items: cart.map(item => ({
+   231→   231→            itemType: item.itemType,
+   232→   232→            itemId: item.id,
+   233→   233→            name: item.name,
+   234→   234→            quantity: item.quantity,
+   235→   235→            unitPrice: item.unitPrice,
+   236→   236→            discount: item.discount,
+   237→   237→            total: (item.unitPrice * item.quantity) - item.discount,
+   238→   238→          })),
+   239→   239→        }),
+   240→   240→      })
+   241→   241→      const json = await res.json()
+   242→   242→      if (json.success) {
+   243→   243→        toast.success('Sale completed successfully!')
+   244→   244→        setCompletedInvoice(json.data)
+   245→   245→        setShowCheckout(false)
+   246→   246→        setShowReceipt(true)
+   247→   247→        fetchInvoices()
+   248→   248→      } else {
+   249→   249→        toast.error(json.error || 'Failed to complete sale')
+   250→   250→      }
+   251→   251→    } catch { toast.error('Failed to complete sale') }
+   252→   252→    finally { setSubmitting(false) }
+   253→   253→  }
+   254→   254→
+   255→   255→  // ─── Print Receipt ──────────────────────────────────────────────────────
+   256→   256→  const printReceipt = () => {
+   257→   257→    if (!completedInvoice) return
+   258→   258→    const c = completedInvoice.customer
+   259→   259→    const w = window.open('', '_blank')
+   260→   260→    if (!w) return
+   261→   261→    w.document.write(`<!DOCTYPE html><html><head><title>Receipt ${completedInvoice.invoiceNumber}</title>
+   262→   262→    <style>
+   263→   263→      @page { size: 80mm auto; margin: 0; }
+   264→   264→      * { margin: 0; padding: 0; box-sizing: border-box; }
+   265→   265→      body { font-family: 'Courier New', monospace; font-size: 11px; color: #000; width: 80mm; padding: 5mm; }
+   266→   266→      .center { text-align: center; }
+   267→   267→      .bold { font-weight: bold; }
+   268→   268→      .line { border-top: 1px dashed #000; margin: 5px 0; }
+   269→   269→      .double-line { border-top: 2px solid #000; margin: 5px 0; }
+   270→   270→      table { width: 100%; }
+   271→   271→      td { padding: 1px 0; }
+   272→   272→      td:last-child { text-align: right; }
+   273→   273→      .logo { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
+   274→   274→      h2 { font-size: 13px; letter-spacing: 2px; }
+   275→   275→    </style></head><body>
+   276→   276→    <div class="center">
+   277→   277→      <p class="logo">✂ SALONFLOW OS</p>
+   278→   278→      <p>Beauty & Spa Management</p>
+   279→   279→      <p>DHA Phase 6, Karachi</p>
+   280→   280→      <p>Tel: +92-300-1234567</p>
+   281→   281→    </div>
+   282→   282→    <div class="double-line"></div>
+   283→   283→    <p class="center bold"><h2>RECEIPT</h2></p>
+   284→   284→    <p>Invoice: <span class="bold">${completedInvoice.invoiceNumber}</span></p>
+   285→   285→    <p>Date: ${new Date(completedInvoice.createdAt).toLocaleString()}</p>
+   286→   286→    <p>Cashier: Admin</p>
+   287→   287→    ${c ? `<p>Customer: ${c.firstName} ${c.lastName}</p><p>Phone: ${c.phone}</p>` : ''}
+   288→   288→    <div class="line"></div>
+   289→   289→    <table>
+   290→   290→      <tr><td class="bold">Item</td><td class="bold">Amt</td></tr>
+   291→   291→      ${(completedInvoice.items || []).map(item => `
+   292→   292→        <tr><td>${item.name} x${item.quantity}</td><td>${formatPKR(item.total)}</td></tr>
+   293→   293→      `).join('')}
+   294→   294→    </table>
+   295→   295→    <div class="line"></div>
+   296→   296→    <table>
+   297→   297→      <tr><td>Subtotal</td><td>${formatPKR(completedInvoice.subtotal)}</td></tr>
+   298→   298→      ${completedInvoice.tax > 0 ? `<tr><td>Tax (5%)</td><td>${formatPKR(completedInvoice.tax)}</td></tr>` : ''}
+   299→   299→      ${completedInvoice.discount > 0 ? `<tr><td>Discount</td><td>-${formatPKR(completedInvoice.discount)}</td></tr>` : ''}
+   300→   300→    </table>
+   301→   301→    <div class="double-line"></div>
+   302→   302→    <table>
+   303→   303→      <tr class="bold" style="font-size:14px"><td>TOTAL</td><td>${formatPKR(completedInvoice.totalAmount)}</td></tr>
+   304→   304→    </table>
+   305→   305→    <div class="double-line"></div>
+   306→   306→    <p>Payment: ${completedInvoice.paymentMethod.toUpperCase()}</p>
+   307→   307→    <div class="line"></div>
+   308→   308→    <div class="center" style="margin-top:8px;">
+   309→   309→      <p>Thank you for your visit!</p>
+   310→   310→      <p style="font-size:9px;margin-top:3px;">SalonFlow OS v1.0 | Powered by ApexFlow</p>
+   311→   311→    </div>
+   312→   312→    </body></html>`)
+   313→   313→    w.document.close()
+   314→   314→    setTimeout(() => w.print(), 300)
+   315→   315→  }
+   316→   316→
+   317→   317→  // ─── Loading State ──────────────────────────────────────────────────────
+   318→   318→  if (loading) {
+   319→   319→    return (
+   320→   320→      <div className="space-y-4">
+   321→   321→        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   322→   322→          <div className="lg:col-span-2 space-y-4">
+   323→   323→            <Skeleton className="h-16 rounded-2xl" />
+   324→   324→            <Skeleton className="h-96 rounded-2xl" />
+   325→   325→          </div>
+   326→   326→          <Skeleton className="h-[500px] rounded-2xl" />
+   327→   327→        </div>
+   328→   328→      </div>
+   329→   329→    )
+   330→   330→  }
+   331→   331→
+   332→   332→  return (
+   333→   333→    <div className="space-y-4 h-full">
+   334→   334→      {/* ─── Top Stats Bar ──────────────────────────────────────────────────── */}
+   335→   335→      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   336→   336→        <AnimatedMetricCard title="Today's Sales" value={formatPKR(todaySales)} subtitle={`${todayTransactions} transactions`} icon={DollarSign} accentGradient="from-emerald-500/20 to-teal-500/20" iconBg="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" delay={0} />
+   337→   337→        <AnimatedMetricCard title="Cart Total" value={formatPKR(grandTotal)} subtitle={`${totalItems} items`} icon={ShoppingCart} accentGradient="from-rose-500/20 to-pink-500/20" iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400" delay={0.05} />
+   338→   338→        <AnimatedMetricCard title="Est. Duration" value={`${Math.floor(totalDuration / 60)}h ${totalDuration % 60}m`} subtitle="Total service time" icon={Clock} accentGradient="from-blue-500/20 to-indigo-500/20" iconBg="bg-blue-500/10 text-blue-600 dark:text-blue-400" delay={0.1} />
+   339→   339→        <AnimatedMetricCard title="Avg. Transaction" value={formatPKR(invoices.length > 0 ? invoices.reduce((s, i) => s + i.totalAmount, 0) / invoices.length : 0)} subtitle="Per invoice" icon={TrendingUp} accentGradient="from-amber-500/20 to-orange-500/20" iconBg="bg-amber-500/10 text-amber-600 dark:text-amber-400" delay={0.15} />
+   340→   340→      </div>
+   341→   341→
+   342→   342→      {/* ─── Mode Toggle ────────────────────────────────────────────────────── */}
+   343→   343→      <div className="flex items-center gap-2">
+   344→   344→        <Button size="sm" variant={viewMode === 'pos' ? 'default' : 'outline'} className={cn('text-xs rounded-xl gap-1.5', viewMode === 'pos' && 'bg-tahoe-accent text-white')} onClick={() => setViewMode('pos')}>
+   345→   345→          <ShoppingCart className="size-3.5" /> Point of Sale
+   346→   346→        </Button>
+   347→   347→        <Button size="sm" variant={viewMode === 'history' ? 'default' : 'outline'} className={cn('text-xs rounded-xl gap-1.5', viewMode === 'history' && 'bg-tahoe-accent text-white')} onClick={() => setViewMode('history')}>
+   348→   348→          <Receipt className="size-3.5" /> Transaction History
+   349→   349→        </Button>
+   350→   350→      </div>
+   351→   351→
+   352→   352→      {viewMode === 'pos' ? (
+   353→   353→        /* ═══ POS LAYOUT — CART STICKY, PRODUCTS SCROLL ═════════════════════ */
+   354→   354→        <div className="flex gap-4" style={{ height: 'calc(100vh - 340px)', minHeight: '500px' }}>
+   355→   355→          {/* ─── LEFT: Product Grid (SCROLLABLE) ─────────────────────────────── */}
+   356→   356→          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+   357→   357→            {/* Search & Category Filter — sticky top */}
+   358→   358→            <div className="shrink-0 mb-3">
+   359→   359→              <GlassCard className="p-3" hover3d={false} animateOnMount={false}>
+   360→   360→                <div className="flex flex-col sm:flex-row gap-2">
+   361→   361→                  <div className="relative flex-1">
+   362→   362→                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+   363→   363→                    <Input
+   364→   364→                      placeholder="Search services... (try 'haircut' or 'facial')"
+   365→   365→                      className="pl-10 h-10 text-sm rounded-xl bg-foreground/[0.02] border-border/50"
+   366→   366→                      value={searchQuery}
+   367→   367→                      onChange={e => setSearchQuery(e.target.value)}
+   368→   368→                    />
+   369→   369→                    {searchQuery && (
+   370→   370→                      <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setSearchQuery('')}>
+   371→   371→                        <X className="size-3" />
+   372→   372→                      </Button>
+   373→   373→                    )}
+   374→   374→                  </div>
+   375→   375→                  <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0 items-center">
+   376→   376→                    <Button size="sm" variant={selectedCategory === 'all' ? 'default' : 'outline'} className={cn('text-[10px] rounded-lg shrink-0 px-3', selectedCategory === 'all' && 'bg-tahoe-accent text-white')} onClick={() => setSelectedCategory('all')}>
+   377→   377→                      All
+   378→   378→                    </Button>
+   379→   379→                    {categories.map(cat => (
+   380→   380→                      <Button key={cat.id} size="sm" variant={selectedCategory === cat.id ? 'default' : 'outline'} className={cn('text-[10px] rounded-lg shrink-0 px-3 gap-1', selectedCategory === cat.id && 'bg-tahoe-accent text-white')} onClick={() => setSelectedCategory(cat.id)}>
+   381→   381→                        <span>{categoryIcons[cat.name] || '✨'}</span>
+   382→   382→                        {cat.name}
+   383→   383→                      </Button>
+   384→   384→                    ))}
+   385→   385→                    {/* View Toggle */}
+   386→   386→                    <div className="ml-1 flex border border-border/50 rounded-lg overflow-hidden">
+   387→   387→                      <button className={cn('p-1.5 transition-colors', productView === 'grid' ? 'bg-tahoe-accent text-white' : 'text-muted-foreground hover:text-foreground')} onClick={() => setProductView('grid')}>
+   388→   388→                        <LayoutGrid className="size-3.5" />
+   389→   389→                      </button>
+   390→   390→                      <button className={cn('p-1.5 transition-colors', productView === 'list' ? 'bg-tahoe-accent text-white' : 'text-muted-foreground hover:text-foreground')} onClick={() => setProductView('list')}>
+   391→   391→                        <List className="size-3.5" />
+   392→   392→                      </button>
+   393→   393→                    </div>
+   394→   394→                  </div>
+   395→   395→                </div>
+   396→   396→              </GlassCard>
+   397→   397→            </div>
+   398→   398→
+   399→   399→            {/* Service Grid/List — SCROLLABLE */}
+   400→   400→            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+   401→   401→              {productView === 'grid' ? (
+   402→   402→                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 pb-2">
+   403→   403→                  <AnimatePresence>
+   404→   404→                    {filteredServices.map(service => {
+   405→   405→                      const inCart = cart.find(i => i.id === service.id)
+   406→   406→                      return (
+   407→   407→                        <motion.button
+   408→   408→                          key={service.id}
+   409→   409→                          layout
+   410→   410→                          initial={{ opacity: 0, scale: 0.9 }}
+   411→   411→                          animate={{ opacity: 1, scale: 1 }}
+   412→   412→                          exit={{ opacity: 0, scale: 0.9 }}
+   413→   413→                          whileHover={{ scale: 1.03, y: -2 }}
+   414→   414→                          whileTap={{ scale: 0.97 }}
+   415→   415→                          onClick={() => addToCart(service)}
+   416→   416→                          className={cn(
+   417→   417→                            'relative text-left p-3 rounded-xl border transition-all duration-200 group',
+   418→   418→                            inCart
+   419→   419→                              ? 'border-rose-500/50 bg-rose-500/5 shadow-md shadow-rose-500/10'
+   420→   420→                              : 'border-border/50 bg-card/60 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
+   421→   421→                          )}
+   422→   422→                        >
+   423→   423→                          {/* Category Badge */}
+   424→   424→                          <div className="flex items-center justify-between mb-2">
+   425→   425→                            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 truncate">{service.categoryName}</span>
+   426→   426→                            {service.isPackage && (
+   427→   427→                              <Badge className="h-4 text-[8px] bg-amber-500/10 text-amber-600 border-amber-500/20 border px-1.5">PKG</Badge>
+   428→   428→                            )}
+   429→   429→                          </div>
+   430→   430→
+   431→   431→                          {/* Service Name */}
+   432→   432→                          <p className="text-sm font-semibold leading-tight mb-1 line-clamp-2">{service.name}</p>
+   433→   433→
+   434→   434→                          {/* Price & Duration */}
+   435→   435→                          <div className="flex items-center justify-between mt-2">
+   436→   436→                            <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatPKR(service.price)}</span>
+   437→   437→                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+   438→   438→                              <Timer className="size-2.5" />{service.duration}m
+   439→   439→                            </span>
+   440→   440→                          </div>
+   441→   441→
+   442→   442→                          {/* Cart Indicator */}
+   443→   443→                          {inCart && (
+   444→   444→                            <motion.div
+   445→   445→                              initial={{ scale: 0 }}
+   446→   446→                              animate={{ scale: 1 }}
+   447→   447→                              className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold shadow-lg"
+   448→   448→                            >
+   449→   449→                              {inCart.quantity}
+   450→   450→                            </motion.div>
+   451→   451→                          )}
+   452→   452→
+   453→   453→                          {/* Hover Add Icon */}
+   454→   454→                          {!inCart && (
+   455→   455→                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+   456→   456→                              <div className="flex size-6 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
+   457→   457→                                <Plus className="size-3" />
+   458→   458→                              </div>
+   459→   459→                            </div>
+   460→   460→                          )}
+   461→   461→                        </motion.button>
+   462→   462→                      )
+   463→   463→                    })}
+   464→   464→                  </AnimatePresence>
+   465→   465→
+   466→   466→                  {filteredServices.length === 0 && (
+   467→   467→                    <div className="col-span-full p-12 text-center">
+   468→   468→                      <Package className="size-12 text-muted-foreground/20 mx-auto mb-3" />
+   469→   469→                      <p className="text-sm text-muted-foreground">No services found</p>
+   470→   470→                    </div>
+   471→   471→                  )}
+   472→   472→                </div>
+   473→   473→              ) : (
+   474→   474→                /* List View */
+   475→   475→                <div className="space-y-1 pb-2">
+   476→   476→                  <AnimatePresence>
+   477→   477→                    {filteredServices.map(service => {
+   478→   478→                      const inCart = cart.find(i => i.id === service.id)
+   479→   479→                      return (
+   480→   480→                        <motion.button
+   481→   481→                          key={service.id}
+   482→   482→                          layout
+   483→   483→                          initial={{ opacity: 0, x: -10 }}
+   484→   484→                          animate={{ opacity: 1, x: 0 }}
+   485→   485→                          exit={{ opacity: 0, x: -10 }}
+   486→   486→                          whileTap={{ scale: 0.98 }}
+   487→   487→                          onClick={() => addToCart(service)}
+   488→   488→                          className={cn(
+   489→   489→                            'w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-200 text-left group',
+   490→   490→                            inCart
+   491→   491→                              ? 'border-rose-500/50 bg-rose-500/5 shadow-sm'
+   492→   492→                              : 'border-border/30 bg-card/40 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
+   493→   493→                          )}
+   494→   494→                        >
+   495→   495→                          <div className={cn('flex size-9 items-center justify-center rounded-lg shrink-0 text-sm', inCart ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/[0.03] text-muted-foreground')}>
+   496→   496→                            {categoryIcons[service.categoryName || ''] || '✨'}
+   497→   497→                          </div>
+   498→   498→                          <div className="flex-1 min-w-0">
+   499→   499→                            <p className="text-xs font-semibold truncate">{service.name}</p>
+   500→   500→                            <p className="text-[10px] text-muted-foreground flex items-center gap-2">
+   501→   501→                              <span>{service.categoryName}</span>
+   502→   502→                              <span className="flex items-center gap-0.5"><Timer className="size-2" />{service.duration}m</span>
+   503→   503→                            </p>
+   504→   504→                          </div>
+   505→   505→                          {service.isPackage && (
+   506→   506→                            <Badge className="h-4 text-[8px] bg-amber-500/10 text-amber-600 border-amber-500/20 border px-1.5 shrink-0">PKG</Badge>
+   507→   507→                          )}
+   508→   508→                          <span className="text-sm font-bold text-rose-600 dark:text-rose-400 shrink-0">{formatPKR(service.price)}</span>
+   509→   509→                          {inCart ? (
+   510→   510→                            <Badge className="h-5 text-[10px] bg-rose-500 text-white px-1.5 shrink-0">{inCart.quantity}×</Badge>
+   511→   511→                          ) : (
+   512→   512→                            <div className="flex size-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+   513→   513→                              <Plus className="size-3" />
+   514→   514→                            </div>
+   515→   515→                          )}
+   516→   516→                        </motion.button>
+   517→   517→                      )
+   518→   518→                    })}
+   519→   519→                  </AnimatePresence>
+   520→   520→                  {filteredServices.length === 0 && (
+   521→   521→                    <div className="p-12 text-center">
+   522→   522→                      <Package className="size-12 text-muted-foreground/20 mx-auto mb-3" />
+   523→   523→                      <p className="text-sm text-muted-foreground">No services found</p>
+   524→   524→                    </div>
+   525→   525→                  )}
+   526→   526→                </div>
+   527→   527→              )}
+   528→   528→            </div>
+   529→   529→          </div>
+   530→   530→
+   531→   531→          {/* ─── RIGHT: Cart (STATIC / STICKY) ────────────────────────────────── */}
+   532→   532→          <div className="w-[380px] shrink-0 flex flex-col overflow-hidden hidden lg:flex">
+   533→   533→            <div className="flex flex-col h-full rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-lg">
+   534→   534→              {/* ── Customer Selector (static top) ── */}
+   535→   535→              <div className="shrink-0 px-4 py-3 border-b border-border/50">
+   536→   536→                <div className="flex items-center justify-between">
+   537→   537→                  <div className="flex items-center gap-2 flex-1 min-w-0">
+   538→   538→                    <div className={cn('flex size-8 items-center justify-center rounded-lg shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
+   539→   539→                      <User className="size-4" />
+   540→   540→                    </div>
+   541→   541→                    {selectedCustomer ? (
+   542→   542→                      <div className="min-w-0">
+   543→   543→                        <p className="text-xs font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
+   544→   544→                        <p className="text-[10px] text-muted-foreground truncate">{selectedCustomer.phone} · <Star className="size-2.5 inline text-amber-500" /> {selectedCustomer.loyaltyTier}</p>
+   545→   545→                      </div>
+   546→   546→                    ) : (
+   547→   547→                      <p className="text-xs text-muted-foreground">Walk-in Customer</p>
+   548→   548→                    )}
+   549→   549→                  </div>
+   550→   550→                  <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg gap-1 shrink-0" onClick={() => setShowCustomerPicker(true)}>
+   551→   551→                    <User className="size-3" /> {selectedCustomer ? 'Change' : 'Select'}
+   552→   552→                  </Button>
+   553→   553→                </div>
+   554→   554→              </div>
+   555→   555→
+   556→   556→              {/* ── Cart Header (static) ── */}
+   557→   557→              <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-foreground/[0.01]">
+   558→   558→                <div className="flex items-center gap-2">
+   559→   559→                  <ShoppingCart className="size-4 text-rose-500" />
+   560→   560→                  <span className="text-xs font-bold uppercase tracking-wider">Current Order</span>
+   561→   561→                  <Badge variant="outline" className="text-[9px] h-5 px-1.5">{totalItems}</Badge>
+   562→   562→                </div>
+   563→   563→                {cart.length > 0 && (
+   564→   564→                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-red-500 hover:text-red-600 gap-1" onClick={clearCart}>
+   565→   565→                    <Trash2 className="size-3" /> Clear
+   566→   566→                  </Button>
+   567→   567→                )}
+   568→   568→              </div>
+   569→   569→
+   570→   570→              {/* ── Cart Items (SCROLLABLE within cart) ── */}
+   571→   571→              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+   572→   572→                <div className="p-2">
+   573→   573→                  <AnimatePresence>
+   574→   574→                    {cart.length === 0 ? (
+   575→   575→                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12 text-center">
+   576→   576→                        <ShoppingBag className="size-10 text-muted-foreground/15 mx-auto mb-2" />
+   577→   577→                        <p className="text-xs text-muted-foreground">Tap services to add</p>
+   578→   578→                      </motion.div>
+   579→   579→                    ) : (
+   580→   580→                      cart.map(item => (
+   581→   581→                        <motion.div
+   582→   582→                          key={item.id}
+   583→   583→                          layout
+   584→   584→                          initial={{ opacity: 0, x: 20 }}
+   585→   585→                          animate={{ opacity: 1, x: 0 }}
+   586→   586→                          exit={{ opacity: 0, x: -20 }}
+   587→   587→                          className="flex items-start gap-2 p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors group"
+   588→   588→                        >
+   589→   589→                          <div className="flex-1 min-w-0">
+   590→   590→                            <p className="text-xs font-semibold truncate">{item.name}</p>
+   591→   591→                            <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+   592→   592→                              <span>{item.category}</span>
+   593→   593→                              <span className="text-border">·</span>
+   594→   594→                              <span className="flex items-center gap-0.5"><Timer className="size-2" />{item.duration || 0}m</span>
+   595→   595→                            </p>
+   596→   596→                            <div className="flex items-center gap-2 mt-1.5">
+   597→   597→                              <div className="flex items-center border border-border/50 rounded-lg overflow-hidden">
+   598→   598→                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, -1)}>
+   599→   599→                                  <Minus className="size-3" />
+   600→   600→                                </button>
+   601→   601→                                <span className="h-6 w-6 flex items-center justify-center text-xs font-semibold">{item.quantity}</span>
+   602→   602→                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, 1)}>
+   603→   603→                                  <Plus className="size-3" />
+   604→   604→                                </button>
+   605→   605→                              </div>
+   606→   606→                            </div>
+   607→   607→                          </div>
+   608→   608→                          <div className="text-right shrink-0">
+   609→   609→                            <p className="text-xs font-bold">{formatPKR(item.unitPrice * item.quantity - item.discount)}</p>
+   610→   610→                            {item.quantity > 1 && <p className="text-[10px] text-muted-foreground">{formatPKR(item.unitPrice)} each</p>}
+   611→   611→                          </div>
+   612→   612→                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 shrink-0" onClick={() => removeFromCart(item.id)}>
+   613→   613→                            <X className="size-3" />
+   614→   614→                          </Button>
+   615→   615→                        </motion.div>
+   616→   616→                      ))
+   617→   617→                    )}
+   618→   618→                  </AnimatePresence>
+   619→   619→                </div>
+   620→   620→              </div>
+   621→   621→
+   622→   622→              {/* ── Cart Footer (STATIC bottom) ── */}
+   623→   623→              <div className="shrink-0 border-t border-border/50">
+   624→   624→                {/* Discount Row */}
+   625→   625→                <div className="px-4 pt-3 pb-2">
+   626→   626→                  <div className="flex items-center gap-2">
+   627→   627→                    <div className="flex size-6 items-center justify-center rounded-md bg-amber-500/10 text-amber-500">
+   628→   628→                      <Percent className="size-3" />
+   629→   629→                    </div>
+   630→   630→                    <span className="text-[10px] text-muted-foreground flex-1">Discount</span>
+   631→   631→                    <div className="flex gap-0.5">
+   632→   632→                      {[0, 5, 10, 15, 20].map(pct => (
+   633→   633→                        <Button key={pct} size="sm" variant={discountPercent === pct ? 'default' : 'outline'} className={cn('h-5 text-[9px] px-1.5 rounded-md', discountPercent === pct && 'bg-tahoe-accent text-white')} onClick={() => { setDiscountPercent(pct); setCustomDiscount('') }}>
+   634→   634→                          {pct}%
+   635→   635→                        </Button>
+   636→   636→                      ))}
+   637→   637→                    </div>
+   638→   638→                  </div>
+   639→   639→                </div>
+   640→   640→
+   641→   641→                <div className="px-4 pb-2">
+   642→   642→                  <Separator />
+   643→   643→                </div>
+   644→   644→
+   645→   645→                {/* Totals */}
+   646→   646→                <div className="px-4 pb-2 space-y-1 text-xs">
+   647→   647→                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({totalItems} items)</span><span>{formatPKR(subtotal)}</span></div>
+   648→   648→                  <div className="flex justify-between"><span className="text-muted-foreground">Tax (5%)</span><span>{formatPKR(tax)}</span></div>
+   649→   649→                  {discountValue > 0 && (
+   650→   650→                    <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>-{formatPKR(discountValue)}</span></div>
+   651→   651→                  )}
+   652→   652→                </div>
+   653→   653→
+   654→   654→                <div className="px-4 pb-2">
+   655→   655→                  <Separator />
+   656→   656→                </div>
+   657→   657→
+   658→   658→                <div className="px-4 pb-2 flex justify-between items-center">
+   659→   659→                  <span className="text-sm font-bold">Grand Total</span>
+   660→   660→                  <motion.span key={grandTotal} initial={{ scale: 1.1 }} animate={{ scale: 1 }} className="text-xl font-black text-rose-600 dark:text-rose-400">
+   661→   661→                    {formatPKR(grandTotal)}
+   662→   662→                  </motion.span>
+   663→   663→                </div>
+   664→   664→
+   665→   665→                {/* Payment Method */}
+   666→   666→                <div className="px-4 pb-2">
+   667→   667→                  <Label className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Payment Method</Label>
+   668→   668→                  <div className="grid grid-cols-4 gap-1">
+   669→   669→                    {paymentMethods.map(pm => (
+   670→   670→                      <TooltipProvider key={pm.value}>
+   671→   671→                        <Tooltip>
+   672→   672→                          <TooltipTrigger asChild>
+   673→   673→                            <button
+   674→   674→                              className={cn(
+   675→   675→                                'flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all text-center',
+   676→   676→                                paymentMethod === pm.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
+   677→   677→                              )}
+   678→   678→                              onClick={() => setPaymentMethod(pm.value)}
+   679→   679→                            >
+   680→   680→                              <div className={cn('flex size-5 items-center justify-center rounded-md text-white', pm.color)}>
+   681→   681→                                <pm.icon className="size-2.5" />
+   682→   682→                              </div>
+   683→   683→                              <span className="text-[8px] font-medium">{pm.label}</span>
+   684→   684→                            </button>
+   685→   685→                          </TooltipTrigger>
+   686→   686→                          <TooltipContent><p>Pay with {pm.label}</p></TooltipContent>
+   687→   687→                        </Tooltip>
+   688→   688→                      </TooltipProvider>
+   689→   689→                    ))}
+   690→   690→                  </div>
+   691→   691→                </div>
+   692→   692→
+   693→   693→                {/* Checkout Button */}
+   694→   694→                <div className="px-4 pb-3">
+   695→   695→                  <Button
+   696→   696→                    className="w-full h-11 text-sm font-bold rounded-xl gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/20"
+   697→   697→                    onClick={() => cart.length > 0 ? setShowCheckout(true) : toast.error('Cart is empty')}
+   698→   698→                    disabled={cart.length === 0}
+   699→   699→                  >
+   700→   700→                    <Zap className="size-4" />
+   701→   701→                    Complete Sale — {formatPKR(grandTotal)}
+   702→   702→                  </Button>
+   703→   703→                  <div className="flex gap-2 mt-2">
+   704→   704→                    <Button variant="outline" className="flex-1 h-7 text-[10px] rounded-lg gap-1" onClick={clearCart} disabled={cart.length === 0}>
+   705→   705→                      <Trash2 className="size-3" /> Clear
+   706→   706→                    </Button>
+   707→   707→                    <Button variant="outline" className="flex-1 h-7 text-[10px] rounded-lg gap-1" onClick={() => setViewMode('history')}>
+   708→   708→                      <Receipt className="size-3" /> History
+   709→   709→                    </Button>
+   710→   710→                  </div>
+   711→   711→                </div>
+   712→   712→              </div>
+   713→   713→            </div>
+   714→   714→          </div>
+   715→   715→
+   716→   716→          {/* ─── MOBILE: Cart (non-sticky, below products) ── */}
+   717→   717→          <div className="lg:hidden space-y-3">
+   718→   718→            {/* Customer Selector */}
+   719→   719→            <GlassCard className="p-3" hover3d={false} animateOnMount={false}>
+   720→   720→              <div className="flex items-center justify-between">
+   721→   721→                <div className="flex items-center gap-2 flex-1 min-w-0">
+   722→   722→                  <div className={cn('flex size-8 items-center justify-center rounded-lg shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
+   723→   723→                    <User className="size-4" />
+   724→   724→                  </div>
+   725→   725→                  {selectedCustomer ? (
+   726→   726→                    <div className="min-w-0">
+   727→   727→                      <p className="text-xs font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
+   728→   728→                      <p className="text-[10px] text-muted-foreground truncate">{selectedCustomer.phone} · <Star className="size-2.5 inline text-amber-500" /> {selectedCustomer.loyaltyTier}</p>
+   729→   729→                    </div>
+   730→   730→                  ) : (
+   731→   731→                    <p className="text-xs text-muted-foreground">Walk-in Customer</p>
+   732→   732→                  )}
+   733→   733→                </div>
+   734→   734→                <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg gap-1 shrink-0" onClick={() => setShowCustomerPicker(true)}>
+   735→   735→                  <User className="size-3" /> {selectedCustomer ? 'Change' : 'Select'}
+   736→   736→                </Button>
+   737→   737→              </div>
+   738→   738→            </GlassCard>
+   739→   739→
+   740→   740→            {/* Cart Items */}
+   741→   741→            <GlassCard className="p-0 overflow-hidden" hover3d={false} animateOnMount={false}>
+   742→   742→              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-foreground/[0.01]">
+   743→   743→                <div className="flex items-center gap-2">
+   744→   744→                  <ShoppingCart className="size-4 text-rose-500" />
+   745→   745→                  <span className="text-xs font-bold uppercase tracking-wider">Current Order</span>
+   746→   746→                  <Badge variant="outline" className="text-[9px] h-5 px-1.5">{totalItems}</Badge>
+   747→   747→                </div>
+   748→   748→                {cart.length > 0 && (
+   749→   749→                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-red-500 hover:text-red-600 gap-1" onClick={clearCart}>
+   750→   750→                    <Trash2 className="size-3" /> Clear
+   751→   751→                  </Button>
+   752→   752→                )}
+   753→   753→              </div>
+   754→   754→              <ScrollArea className="max-h-[280px]">
+   755→   755→                <div className="p-2">
+   756→   756→                  <AnimatePresence>
+   757→   757→                    {cart.length === 0 ? (
+   758→   758→                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12 text-center">
+   759→   759→                        <ShoppingBag className="size-10 text-muted-foreground/15 mx-auto mb-2" />
+   760→   760→                        <p className="text-xs text-muted-foreground">Tap services to add</p>
+   761→   761→                      </motion.div>
+   762→   762→                    ) : (
+   763→   763→                      cart.map(item => (
+   764→   764→                        <motion.div
+   765→   765→                          key={item.id}
+   766→   766→                          layout
+   767→   767→                          initial={{ opacity: 0, x: 20 }}
+   768→   768→                          animate={{ opacity: 1, x: 0 }}
+   769→   769→                          exit={{ opacity: 0, x: -20 }}
+   770→   770→                          className="flex items-start gap-2 p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors group"
+   771→   771→                        >
+   772→   772→                          <div className="flex-1 min-w-0">
+   773→   773→                            <p className="text-xs font-semibold truncate">{item.name}</p>
+   774→   774→                            <p className="text-[10px] text-muted-foreground">{item.category} · {item.duration || 0}m</p>
+   775→   775→                            <div className="flex items-center gap-2 mt-1.5">
+   776→   776→                              <div className="flex items-center border border-border/50 rounded-lg overflow-hidden">
+   777→   777→                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, -1)}>
+   778→   778→                                  <Minus className="size-3" />
+   779→   779→                                </button>
+   780→   780→                                <span className="h-6 w-6 flex items-center justify-center text-xs font-semibold">{item.quantity}</span>
+   781→   781→                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, 1)}>
+   782→   782→                                  <Plus className="size-3" />
+   783→   783→                                </button>
+   784→   784→                              </div>
+   785→   785→                            </div>
+   786→   786→                          </div>
+   787→   787→                          <div className="text-right shrink-0">
+   788→   788→                            <p className="text-xs font-bold">{formatPKR(item.unitPrice * item.quantity - item.discount)}</p>
+   789→   789→                            {item.quantity > 1 && <p className="text-[10px] text-muted-foreground">{formatPKR(item.unitPrice)} each</p>}
+   790→   790→                          </div>
+   791→   791→                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 shrink-0" onClick={() => removeFromCart(item.id)}>
+   792→   792→                            <X className="size-3" />
+   793→   793→                          </Button>
+   794→   794→                        </motion.div>
+   795→   795→                      ))
+   796→   796→                    )}
+   797→   797→                  </AnimatePresence>
+   798→   798→                </div>
+   799→   799→              </ScrollArea>
+   800→   800→            </GlassCard>
+   801→   801→
+   802→   802→            {/* Cart Summary & Actions */}
+   803→   803→            <GlassCard className="p-4" hover3d={false} animateOnMount={false}>
+   804→   804→              <div className="flex items-center gap-2 mb-3">
+   805→   805→                <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+   806→   806→                  <Percent className="size-3.5" />
+   807→   807→                </div>
+   808→   808→                <span className="text-xs text-muted-foreground flex-1">Discount</span>
+   809→   809→                <div className="flex gap-1">
+   810→   810→                  {[0, 5, 10, 15, 20].map(pct => (
+   811→   811→                    <Button key={pct} size="sm" variant={discountPercent === pct ? 'default' : 'outline'} className={cn('h-6 text-[10px] px-2 rounded-md', discountPercent === pct && 'bg-tahoe-accent text-white')} onClick={() => { setDiscountPercent(pct); setCustomDiscount('') }}>
+   812→   812→                      {pct}%
+   813→   813→                    </Button>
+   814→   814→                  ))}
+   815→   815→                </div>
+   816→   816→              </div>
+   817→   817→              <Separator className="mb-3" />
+   818→   818→              <div className="space-y-1.5 text-xs">
+   819→   819→                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({totalItems} items)</span><span>{formatPKR(subtotal)}</span></div>
+   820→   820→                <div className="flex justify-between"><span className="text-muted-foreground">Tax (5%)</span><span>{formatPKR(tax)}</span></div>
+   821→   821→                {discountValue > 0 && (
+   822→   822→                  <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>-{formatPKR(discountValue)}</span></div>
+   823→   823→                )}
+   824→   824→              </div>
+   825→   825→              <Separator className="my-3" />
+   826→   826→              <div className="flex justify-between items-center mb-4">
+   827→   827→                <span className="text-sm font-bold">Grand Total</span>
+   828→   828→                <motion.span key={grandTotal} initial={{ scale: 1.1 }} animate={{ scale: 1 }} className="text-xl font-black text-rose-600 dark:text-rose-400">
+   829→   829→                  {formatPKR(grandTotal)}
+   830→   830→                </motion.span>
+   831→   831→              </div>
+   832→   832→              <div className="mb-3">
+   833→   833→                <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Payment Method</Label>
+   834→   834→                <div className="grid grid-cols-4 gap-1.5">
+   835→   835→                  {paymentMethods.map(pm => (
+   836→   836→                    <TooltipProvider key={pm.value}>
+   837→   837→                      <Tooltip>
+   838→   838→                        <TooltipTrigger asChild>
+   839→   839→                          <button
+   840→   840→                            className={cn(
+   841→   841→                              'flex flex-col items-center gap-1 p-2 rounded-xl border transition-all text-center',
+   842→   842→                              paymentMethod === pm.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
+   843→   843→                            )}
+   844→   844→                            onClick={() => setPaymentMethod(pm.value)}
+   845→   845→                          >
+   846→   846→                            <div className={cn('flex size-6 items-center justify-center rounded-lg text-white', pm.color)}>
+   847→   847→                              <pm.icon className="size-3" />
+   848→   848→                            </div>
+   849→   849→                            <span className="text-[9px] font-medium">{pm.label}</span>
+   850→   850→                          </button>
+   851→   851→                        </TooltipTrigger>
+   852→   852→                        <TooltipContent><p>Pay with {pm.label}</p></TooltipContent>
+   853→   853→                      </Tooltip>
+   854→   854→                    </TooltipProvider>
+   855→   855→                  ))}
+   856→   856→                </div>
+   857→   857→              </div>
+   858→   858→              <Button
+   859→   859→                className="w-full h-12 text-sm font-bold rounded-xl gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/20"
+   860→   860→                onClick={() => cart.length > 0 ? setShowCheckout(true) : toast.error('Cart is empty')}
+   861→   861→                disabled={cart.length === 0}
+   862→   862→              >
+   863→   863→                <Zap className="size-4" />
+   864→   864→                Complete Sale — {formatPKR(grandTotal)}
+   865→   865→              </Button>
+   866→   866→              <div className="flex gap-2 mt-2">
+   867→   867→                <Button variant="outline" className="flex-1 h-8 text-[10px] rounded-lg gap-1" onClick={clearCart} disabled={cart.length === 0}>
+   868→   868→                  <Trash2 className="size-3" /> Clear
+   869→   869→                </Button>
+   870→   870→                <Button variant="outline" className="flex-1 h-8 text-[10px] rounded-lg gap-1" onClick={() => setViewMode('history')}>
+   871→   871→                  <Receipt className="size-3" /> History
+   872→   872→                </Button>
+   873→   873→              </div>
+   874→   874→            </GlassCard>
+   875→   875→          </div>
+   876→   876→        </div>
+   877→   877→      ) : (
+   878→   878→        /* ═══ TRANSACTION HISTORY ═════════════════════════════════════════════ */
+   879→   879→        <GlassCard className="overflow-hidden">
+   880→   880→          <div className="p-4 border-b border-border/50 flex items-center justify-between">
+   881→   881→            <h3 className="text-sm font-semibold">Recent Transactions</h3>
+   882→   882→            <Badge variant="outline" className="text-[10px]">{invoices.length} invoices</Badge>
+   883→   883→          </div>
+   884→   884→          <ScrollArea className="max-h-[500px]">
+   885→   885→            <div className="divide-y divide-border/50">
+   886→   886→              {invoices.map(inv => (
+   887→   887→                <motion.div
+   888→   888→                  key={inv.id}
+   889→   889→                  className="flex items-center justify-between p-4 hover:bg-foreground/[0.02] transition-colors cursor-pointer"
+   890→   890→                  whileHover={{ x: 2 }}
+   891→   891→                  onClick={() => { setCompletedInvoice(inv); setShowReceipt(true) }}
+   892→   892→                >
+   893→   893→                  <div className="flex items-center gap-3">
+   894→   894→                    <div className={cn('flex size-9 items-center justify-center rounded-xl text-white text-xs', inv.paymentStatus === 'paid' ? 'bg-emerald-500' : inv.paymentStatus === 'pending' ? 'bg-amber-500' : 'bg-red-500')}>
+   895→   895→                      {inv.paymentStatus === 'paid' ? <CheckCircle2 className="size-4" /> : inv.paymentStatus === 'pending' ? <Clock className="size-4" /> : <AlertCircle className="size-4" />}
+   896→   896→                    </div>
+   897→   897→                    <div>
+   898→   898→                      <p className="text-xs font-semibold">{inv.invoiceNumber}</p>
+   899→   899→                      <p className="text-[10px] text-muted-foreground">
+   900→   900→                        {inv.customer ? `${inv.customer.firstName} ${inv.customer.lastName}` : 'Walk-in'} · {formatDate(inv.createdAt)}
+   901→   901→                      </p>
+   902→   902→                    </div>
+   903→   903→                  </div>
+   904→   904→                  <div className="flex items-center gap-3">
+   905→   905→                    <div className="text-right">
+   906→   906→                      <p className="text-sm font-bold">{formatPKR(inv.totalAmount)}</p>
+   907→   907→                      <div className="flex items-center gap-1 justify-end">
+   908→   908→                        {inv.paymentMethod === 'cash' && <Banknote className="size-2.5 text-emerald-500" />}
+   909→   909→                        {inv.paymentMethod === 'card' && <CreditCard className="size-2.5 text-blue-500" />}
+   910→   910→                        {inv.paymentMethod === 'wallet' && <Wallet className="size-2.5 text-purple-500" />}
+   911→   911→                        <span className="text-[10px] text-muted-foreground capitalize">{inv.paymentMethod}</span>
+   912→   912→                      </div>
+   913→   913→                    </div>
+   914→   914→                    <Eye className="size-3.5 text-muted-foreground" />
+   915→   915→                  </div>
+   916→   916→                </motion.div>
+   917→   917→              ))}
+   918→   918→              {invoices.length === 0 && (
+   919→   919→                <div className="p-12 text-center">
+   920→   920→                  <Receipt className="size-12 text-muted-foreground/20 mx-auto mb-3" />
+   921→   921→                  <p className="text-sm text-muted-foreground">No transactions yet</p>
+   922→   922→                </div>
+   923→   923→              )}
+   924→   924→            </div>
+   925→   925→          </ScrollArea>
+   926→   926→        </GlassCard>
+   927→   927→      )}
+   928→   928→
+   929→   929→      {/* ═══ DIALOGS ═══════════════════════════════════════════════════════════ */}
+   930→   930→
+   931→   931→      {/* ─── Checkout Confirmation ─────────────────────────────────────────── */}
+   932→   932→      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
+   933→   933→        <DialogContent className="max-w-md">
+   934→   934→          <DialogHeader>
+   935→   935→            <DialogTitle className="flex items-center gap-2">
+   936→   936→              <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 text-white">
+   937→   937→                <ShoppingCart className="size-4" />
+   938→   938→              </div>
+   939→   939→              Confirm Sale
+   940→   940→            </DialogTitle>
+   941→   941→          </DialogHeader>
+   942→   942→          <div className="space-y-4 py-2">
+   943→   943→            {/* Customer */}
+   944→   944→            <div className="flex items-center gap-2 p-3 rounded-xl bg-foreground/[0.02]">
+   945→   945→              <User className="size-4 text-muted-foreground" />
+   946→   946→              <span className="text-sm">{selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : 'Walk-in Customer'}</span>
+   947→   947→            </div>
+   948→   948→
+   949→   949→            {/* Items Summary */}
+   950→   950→            <div className="space-y-1">
+   951→   951→              {cart.map(item => (
+   952→   952→                <div key={item.id} className="flex justify-between text-xs">
+   953→   953→                  <span>{item.name} × {item.quantity}</span>
+   954→   954→                  <span className="font-semibold">{formatPKR(item.unitPrice * item.quantity - item.discount)}</span>
+   955→   955→                </div>
+   956→   956→              ))}
+   957→   957→            </div>
+   958→   958→
+   959→   959→            <Separator />
+   960→   960→
+   961→   961→            {/* Totals */}
+   962→   962→            <div className="space-y-1.5 text-xs">
+   963→   963→              <div className="flex justify-between"><span>Subtotal</span><span>{formatPKR(subtotal)}</span></div>
+   964→   964→              <div className="flex justify-between"><span>Tax (5%)</span><span>{formatPKR(tax)}</span></div>
+   965→   965→              {discountValue > 0 && <div className="flex justify-between text-emerald-600"><span>Discount</span><span>-{formatPKR(discountValue)}</span></div>}
+   966→   966→              <Separator />
+   967→   967→              <div className="flex justify-between text-base font-bold"><span>Total</span><span className="text-rose-600">{formatPKR(grandTotal)}</span></div>
+   968→   968→            </div>
+   969→   969→
+   970→   970→            {/* Payment Method */}
+   971→   971→            <div className="flex items-center gap-2 p-3 rounded-xl bg-foreground/[0.02]">
+   972→   972→              {paymentMethod === 'cash' && <Banknote className="size-4 text-emerald-500" />}
+   973→   973→              {paymentMethod === 'card' && <CreditCard className="size-4 text-blue-500" />}
+   974→   974→              {paymentMethod === 'wallet' && <Wallet className="size-4 text-purple-500" />}
+   975→   975→              {paymentMethod === 'split' && <Receipt className="size-4 text-amber-500" />}
+   976→   976→              <span className="text-sm font-medium capitalize">{paymentMethod} Payment</span>
+   977→   977→            </div>
+   978→   978→          </div>
+   979→   979→          <DialogFooter className="gap-2">
+   980→   980→            <Button variant="outline" className="rounded-xl" onClick={() => setShowCheckout(false)}>Cancel</Button>
+   981→   981→            <Button className="rounded-xl gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white" onClick={handleCompleteSale} disabled={submitting}>
+   982→   982→              {submitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+   983→   983→              Confirm & Charge {formatPKR(grandTotal)}
+   984→   984→            </Button>
+   985→   985→          </DialogFooter>
+   986→   986→        </DialogContent>
+   987→   987→      </Dialog>
+   988→   988→
+   989→   989→      {/* ─── Receipt Dialog ────────────────────────────────────────────────── */}
+   990→   990→      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+   991→   991→        <DialogContent className="max-w-sm">
+   992→   992→          <DialogHeader>
+   993→   993→            <DialogTitle className="flex items-center gap-2">
+   994→   994→              <Receipt className="size-5 text-rose-500" /> Sale Complete
+   995→   995→            </DialogTitle>
+   996→   996→          </DialogHeader>
+   997→   997→          {completedInvoice && (
+   998→   998→            <div className="space-y-4 py-2">
+   999→   999→              {/* Success Animation */}
+  1000→  1000→              <motion.div
+  1001→  1001→                initial={{ scale: 0 }}
+  1002→  1002→                animate={{ scale: 1 }}
+  1003→  1003→                transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+  1004→  1004→                className="flex size-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500 mx-auto"
+  1005→  1005→              >
+  1006→  1006→                <CheckCircle2 className="size-8" />
+  1007→  1007→              </motion.div>
+  1008→  1008→
+  1009→  1009→              <div className="text-center">
+  1010→  1010→                <p className="text-lg font-bold">{formatPKR(completedInvoice.totalAmount)}</p>
+  1011→  1011→                <p className="text-xs text-muted-foreground">{completedInvoice.invoiceNumber}</p>
+  1012→  1012→              </div>
+  1013→  1013→
+  1014→  1014→              <div className="p-3 rounded-xl bg-foreground/[0.02] space-y-1.5 text-xs">
+  1015→  1015→                <div className="flex justify-between"><span>Payment</span><span className="capitalize font-semibold">{completedInvoice.paymentMethod}</span></div>
+  1016→  1016→                <div className="flex justify-between"><span>Customer</span><span>{completedInvoice.customer ? `${completedInvoice.customer.firstName} ${completedInvoice.customer.lastName}` : 'Walk-in'}</span></div>
+  1017→  1017→                <div className="flex justify-between"><span>Items</span><span>{completedInvoice.items?.length || 0}</span></div>
+  1018→  1018→              </div>
+  1019→  1019→
+  1020→  1020→              {/* Items */}
+  1021→  1021→              <div className="space-y-1">
+  1022→  1022→                {(completedInvoice.items || []).map(item => (
+  1023→  1023→                  <div key={item.id} className="flex justify-between text-xs">
+  1024→  1024→                    <span>{item.name} × {item.quantity}</span>
+  1025→  1025→                    <span className="font-semibold">{formatPKR(item.total)}</span>
+  1026→  1026→                  </div>
+  1027→  1027→                ))}
+  1028→  1028→              </div>
+  1029→  1029→
+  1030→  1030→              <div className="flex gap-2">
+  1031→  1031→                <Button variant="outline" className="flex-1 gap-1.5 text-xs rounded-xl" onClick={printReceipt}>
+  1032→  1032→                  <Printer className="size-3.5" /> Print Receipt
+  1033→  1033→                </Button>
+  1034→  1034→                <Button className="flex-1 gap-1.5 text-xs rounded-xl" onClick={() => { setShowReceipt(false); clearCart() }}>
+  1035→  1035→                  <Plus className="size-3.5" /> New Sale
+  1036→  1036→                </Button>
+  1037→  1037→              </div>
+  1038→  1038→            </div>
+  1039→  1039→          )}
+  1040→  1040→        </DialogContent>
+  1041→  1041→      </Dialog>
+  1042→  1042→
+  1043→  1043→      {/* ─── Customer Picker ───────────────────────────────────────────────── */}
+  1044→  1044→      <Dialog open={showCustomerPicker} onOpenChange={setShowCustomerPicker}>
+  1045→  1045→        <DialogContent className="max-w-md">
+  1046→  1046→          <DialogHeader><DialogTitle className="flex items-center gap-2"><User className="size-5 text-rose-500" /> Select Customer</DialogTitle></DialogHeader>
+  1047→  1047→          <div className="space-y-3 py-2">
+  1048→  1048→            <div className="relative">
+  1049→  1049→              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+  1050→  1050→              <Input placeholder="Search by name or phone..." className="pl-9 h-9 text-sm rounded-xl" value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} />
+  1051→  1051→            </div>
+  1052→  1052→            <ScrollArea className="max-h-64">
+  1053→  1053→              <div className="space-y-1">
+  1054→  1054→                <button
+  1055→  1055→                  className={cn('flex items-center gap-3 w-full p-2.5 rounded-xl transition-colors text-left', !selectedCustomer ? 'bg-rose-500/5 border border-rose-500/30' : 'hover:bg-foreground/[0.02]')}
+  1056→  1056→                  onClick={() => { setSelectedCustomer(null); setShowCustomerPicker(false) }}
+  1057→  1057→                >
+  1058→  1058→                  <div className="flex size-8 items-center justify-center rounded-lg bg-foreground/5 text-muted-foreground"><User className="size-4" /></div>
+  1059→  1059→                  <div><p className="text-xs font-semibold">Walk-in Customer</p><p className="text-[10px] text-muted-foreground">No loyalty points</p></div>
+  1060→  1060→                </button>
+  1061→  1061→                {customers
+  1062→  1062→                  .filter(c => !customerSearch || `${c.firstName} ${c.lastName} ${c.phone}`.toLowerCase().includes(customerSearch.toLowerCase()))
+  1063→  1063→                  .map(customer => (
+  1064→  1064→                    <button
+  1065→  1065→                      key={customer.id}
+  1066→  1066→                      className={cn('flex items-center gap-3 w-full p-2.5 rounded-xl transition-colors text-left', selectedCustomer?.id === customer.id ? 'bg-rose-500/5 border border-rose-500/30' : 'hover:bg-foreground/[0.02]')}
+  1067→  1067→                      onClick={() => { setSelectedCustomer(customer); setShowCustomerPicker(false) }}
+  1068→  1068→                    >
+  1069→  1069→                      <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold">
+  1070→  1070→                        {customer.firstName.charAt(0)}
+  1071→  1071→                      </div>
+  1072→  1072→                      <div className="flex-1 min-w-0">
+  1073→  1073→                        <p className="text-xs font-semibold truncate">{customer.firstName} {customer.lastName}</p>
+  1074→  1074→                        <p className="text-[10px] text-muted-foreground">{customer.phone} · <Star className="size-2 inline text-amber-500" /> {customer.loyaltyTier} · {customer.loyaltyPoints} pts</p>
+  1075→  1075→                      </div>
+  1076→  1076→                    </button>
+  1077→  1077→                  ))}
+  1078→  1078→              </div>
+  1079→  1079→            </ScrollArea>
+  1080→  1080→          </div>
+  1081→  1081→        </DialogContent>
+  1082→  1082→      </Dialog>
+  1083→  1083→    </div>
+  1084→  1084→  )
+  1085→  1085→}
+  1086→  1086→
