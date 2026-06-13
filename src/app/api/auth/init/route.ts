@@ -88,8 +88,13 @@ export async function GET(req: NextRequest) {
         activated,
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Init error:', error)
-    return NextResponse.json({ success: false, error: 'Initialization failed' }, { status: 500 })
+    const errorMsg = error?.message || String(error)
+    const errorCode = error?.code || error?.errorCode || 'UNKNOWN'
+    return NextResponse.json({
+      success: false,
+      error: `Initialization failed: ${errorMsg} (${errorCode})`,
+    }, { status: 500 })
   }
 }

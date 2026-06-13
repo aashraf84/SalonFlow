@@ -125,9 +125,15 @@ export async function POST(req: NextRequest) {
         message: 'Device activated successfully!',
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Activation error:', error)
-    return NextResponse.json({ success: false, error: 'Activation failed. Please try again.' }, { status: 500 })
+    const errorMsg = error?.message || String(error)
+    const errorCode = error?.code || error?.errorCode || 'UNKNOWN'
+    return NextResponse.json({
+      success: false,
+      error: `Activation failed: ${errorMsg} (${errorCode})`,
+      debug: process.env.NODE_ENV !== 'production' ? { stack: error?.stack } : undefined,
+    }, { status: 500 })
   }
 }
 

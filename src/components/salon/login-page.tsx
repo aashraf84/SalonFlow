@@ -154,15 +154,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }
       setDeviceId(storedDeviceId)
 
-      // Use combined init endpoint with timeout and retry
       const fetchWithTimeout = (url: string, timeoutMs: number) => {
         const controller = new AbortController()
         const id = setTimeout(() => controller.abort(), timeoutMs)
         return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(id))
       }
 
-      const maxRetries = 3
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Try init endpoint with retries
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const res = await fetchWithTimeout(`/api/auth/init?deviceId=${encodeURIComponent(storedDeviceId)}`, 15000)
           const json = await res.json()
@@ -173,16 +172,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           } else {
             setPhase('activate')
           }
-          return // success, exit
+          return
         } catch (err) {
           console.warn(`Init attempt ${attempt + 1} failed:`, err)
-          if (attempt < maxRetries - 1) {
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1))) // backoff
-          }
+          if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
         }
       }
 
-      // All retries failed for init - try just activation check
+      // Fallback: try direct activation check
       try {
         const res = await fetchWithTimeout(`/api/auth/activate?deviceId=${encodeURIComponent(storedDeviceId)}`, 10000)
         const json = await res.json()
@@ -193,8 +190,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           setPhase('activate')
         }
       } catch {
-        // Even activation check failed - show activate screen anyway
-        // User can still use Demo button which auto-activates
         setPhase('activate')
       }
     }
@@ -296,7 +291,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 20000)
+      const timeoutId = setTimeout(() => controller.abort(), 30000)
 
       const res = await fetch('/api/auth/demo', {
         method: 'POST',
@@ -309,19 +304,17 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       if (json.success) {
         localStorage.setItem('salonflow_token', json.data.token)
 
-        // Auto-activate device for demo users (bypasses activation requirement)
-        try {
-          await fetch('/api/auth/activate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              deviceId,
-              serialKey: 'SALON-DEMO-2024-ACTIVATION',
-              deviceName: navigator.userAgent.split(' ').slice(-1)[0] || 'Demo Device',
-              browserInfo: navigator.userAgent.substring(0, 100),
-            }),
-          })
-        } catch { /* ignore auto-activation errors */ }
+        // Auto-activate device in background (non-blocking, ignore errors)
+        fetch('/api/auth/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceId,
+            serialKey: 'SALON-DEMO-2024-ACTIVATION',
+            deviceName: navigator.userAgent.split(' ').slice(-1)[0] || 'Demo Device',
+            browserInfo: navigator.userAgent.substring(0, 100),
+          }),
+        }).catch(() => {})
 
         toast.success('Welcome to SalonFlow OS Demo!')
         onLogin(json.data)
