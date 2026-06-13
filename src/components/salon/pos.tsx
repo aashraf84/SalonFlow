@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface ServiceType {
   id: string; name: string; description?: string; duration: number; price: number; isActive: boolean; isPackage: boolean
+  taxRate: number; taxType: string
   category?: { id: string; name: string; icon?: string }
 }
 
@@ -42,6 +43,7 @@ interface CartItem {
   id: string; itemType: string; name: string; unitPrice: number; quantity: number
   duration?: number; staffId?: string; staffName?: string; discount: number; notes?: string
   category?: string
+  taxRate: number; taxType: string
 }
 
 interface InvoiceType {
@@ -98,6 +100,14 @@ export function PosModule() {
   const [completedInvoice, setCompletedInvoice] = useState<InvoiceType | null>(null)
   const [viewMode, setViewMode] = useState<'pos' | 'history'>('pos')
   const [productView, setProductView] = useState<'grid' | 'list'>('grid')
+
+  // POS Tax Mode State
+  const [posTaxMode, setPosTaxMode] = useState<'included' | 'excluded' | 'none'>('included')
+
+  // Keyboard Navigation State
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const serviceListRef = useRef<HTMLDivElement>(null)
 
   // Staff Picker State
   const [staffList, setStaffList] = useState<{id: string; firstName: string; lastName: string; role: string; specialization?: string; avatar?: string}[]>([])
@@ -190,6 +200,35 @@ export function PosModule() {
     setShowStaffPicker(true)
   }, [])
 
+  // Keyboard navigation handler
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightedIndex(prev => Math.min(prev + 1, filteredServices.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightedIndex(prev => Math.max(prev - 1, -1))
+    } else if (e.key === 'Enter' && highlightedIndex >= 0 && highlightedIndex < filteredServices.length) {
+      e.preventDefault()
+      handleServiceClick(filteredServices[highlightedIndex])
+    }
+  }, [filteredServices, highlightedIndex, handleServiceClick])
+
+  // Reset highlighted index when search or category changes
+  useEffect(() => {
+    setHighlightedIndex(-1)
+  }, [searchQuery, selectedCategory])
+
+  // Auto-scroll to highlighted item
+  useEffect(() => {
+    if (highlightedIndex >= 0 && serviceListRef.current) {
+      const items = serviceListRef.current.querySelectorAll('[data-service-index]')
+      if (items[highlightedIndex]) {
+        items[highlightedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [highlightedIndex])
+
   const handleStaffSelect = useCallback((staffId: string | null, staffName: string | null) => {
     if (!pendingService) return
     setCart(prev => {
@@ -210,6 +249,8 @@ export function PosModule() {
         category: pendingService.categoryName,
         staffId: staffId || undefined,
         staffName: staffName || undefined,
+        taxRate: pendingService.taxRate || 0,
+        taxType: pendingService.taxType || 'none',
       }]
     })
     toast.success(`${pendingService.name} added${staffName ? ` — ${staffName}` : ''}`, { duration: 1200 })
@@ -240,11 +281,23 @@ export function PosModule() {
 
   // ─── Calculations ───────────────────────────────────────────────────────
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity) - item.discount, 0), [cart])
-  const taxRate = taxSettings.taxMode === 'none' ? 0 : (parseFloat(taxSettings.taxRate) || 0) / 100
-  const tax = taxSettings.taxMode === 'excluded' ? subtotal * taxRate : 0
-  const includedTaxAmount = taxSettings.taxMode === 'included' ? subtotal * taxRate / (1 + taxRate) : 0
+
+  // Calculate per-item tax
+  const totalTax = useMemo(() => {
+    return cart.reduce((sum, item) => {
+      if (item.taxType === 'none' || !item.taxRate || item.taxRate <= 0) return sum
+      const itemSubtotal = (item.unitPrice * item.quantity) - item.discount
+      return sum + (itemSubtotal * item.taxRate / 100)
+    }, 0)
+  }, [cart])
+
   const discountValue = subtotal * discountPercent / 100
-  const grandTotal = taxSettings.taxMode === 'excluded' ? subtotal + tax - discountValue : subtotal - discountValue
+  const grandTotal = useMemo(() => {
+    if (posTaxMode === 'included') return subtotal + totalTax - discountValue
+    if (posTaxMode === 'excluded') return subtotal - totalTax - discountValue
+    return subtotal - discountValue  // 'none'
+  }, [subtotal, totalTax, discountValue, posTaxMode])
+
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const totalDuration = cart.reduce((sum, item) => sum + (item.duration || 0) * item.quantity, 0)
 
@@ -269,7 +322,7 @@ export function PosModule() {
           customerId: selectedCustomer?.id || null,
           type: 'service',
           subtotal,
-          tax: taxSettings.taxMode === 'excluded' ? tax : includedTaxAmount,
+          tax: posTaxMode === 'none' ? 0 : totalTax,
           discount: discountValue,
           totalAmount: grandTotal,
           paymentMethod,
@@ -308,10 +361,10 @@ export function PosModule() {
     if (!w) return
 
     // Determine tax line for receipt
-    const receiptTaxLine = taxSettings.taxMode === 'none' ? '' :
-      taxSettings.taxMode === 'included'
-        ? `<tr><td>${taxSettings.taxName} (${parseFloat(taxSettings.taxRate)}% incl.)</td><td>${formatPKR(includedTaxAmount)}</td></tr>`
-        : `<tr><td>${taxSettings.taxName} (${parseFloat(taxSettings.taxRate)}%)</td><td>${formatPKR(tax)}</td></tr>`
+    const receiptTaxItems = cart.filter(item => item.taxType !== 'none' && item.taxRate > 0)
+    const receiptAvgRate = receiptTaxItems.length > 0 ? receiptTaxItems.reduce((s, i) => s + i.taxRate, 0) / receiptTaxItems.length : 0
+    const receiptTaxLine = (posTaxMode === 'none' || totalTax <= 0) ? '' :
+      `<tr><td>Sales Tax (${receiptAvgRate.toFixed(1)}% ${posTaxMode === 'included' ? 'incl.' : 'excl.'})</td><td>${formatPKR(totalTax)}</td></tr>`
 
     w.document.write(`<!DOCTYPE html><html><head><title>Receipt ${completedInvoice.invoiceNumber}</title>
     <style>
@@ -386,13 +439,15 @@ export function PosModule() {
 
   // ─── Tax display helper ─────────────────────────────────────────────────
   const renderTaxLine = (className?: string) => {
-    if (taxSettings.taxMode === 'none') return null
+    if (posTaxMode === 'none' || totalTax <= 0) return null
+    const taxItems = cart.filter(item => item.taxType !== 'none' && item.taxRate > 0)
+    const avgRate = taxItems.length > 0 ? taxItems.reduce((s, i) => s + i.taxRate, 0) / taxItems.length : 0
     return (
       <div className={cn('flex justify-between', className)}>
         <span className="text-muted-foreground">
-          {taxSettings.taxName} ({parseFloat(taxSettings.taxRate)}%{taxSettings.taxMode === 'included' ? ' incl.' : ''})
+          Sales Tax ({avgRate.toFixed(1)}% {posTaxMode === 'included' ? 'incl.' : 'excl.'})
         </span>
-        <span>{formatPKR(taxSettings.taxMode === 'excluded' ? tax : includedTaxAmount)}</span>
+        <span>{formatPKR(totalTax)}</span>
       </div>
     )
   }
@@ -429,10 +484,12 @@ export function PosModule() {
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search services... (try 'haircut' or 'facial')"
+                      placeholder="Search services... (type, ↑↓ to navigate, Enter to add)"
                       className="pl-10 h-10 text-sm rounded-xl bg-foreground/[0.02] border-border/50"
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
+                      onKeyDown={handleSearchKeyDown}
+                      ref={searchInputRef}
                     />
                     {searchQuery && (
                       <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setSearchQuery('')}>
@@ -465,11 +522,11 @@ export function PosModule() {
             </div>
 
             {/* Service Grid/List — SCROLLABLE */}
-            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar" ref={serviceListRef}>
               {productView === 'grid' ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 pb-2">
                   <AnimatePresence>
-                    {filteredServices.map(service => {
+                    {filteredServices.map((service, idx) => {
                       const inCart = cart.find(i => i.id === service.id)
                       return (
                         <motion.button
@@ -481,8 +538,10 @@ export function PosModule() {
                           whileHover={{ scale: 1.03, y: -2 }}
                           whileTap={{ scale: 0.97 }}
                           onClick={() => handleServiceClick(service)}
+                          data-service-index={idx}
                           className={cn(
                             'relative text-left p-3 rounded-xl border transition-all duration-200 group',
+                            highlightedIndex === idx ? 'border-rose-500 bg-rose-500/10 shadow-md shadow-rose-500/10 ring-2 ring-rose-500/30' :
                             inCart
                               ? 'border-rose-500/50 bg-rose-500/5 shadow-md shadow-rose-500/10'
                               : 'border-border/50 bg-card/60 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
@@ -542,7 +601,7 @@ export function PosModule() {
                 /* List View */
                 <div className="space-y-1 pb-2">
                   <AnimatePresence>
-                    {filteredServices.map(service => {
+                    {filteredServices.map((service, idx) => {
                       const inCart = cart.find(i => i.id === service.id)
                       return (
                         <motion.button
@@ -553,8 +612,10 @@ export function PosModule() {
                           exit={{ opacity: 0, x: -10 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => handleServiceClick(service)}
+                          data-service-index={idx}
                           className={cn(
                             'w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-200 text-left group',
+                            highlightedIndex === idx ? 'border-rose-500 bg-rose-500/10 shadow-md shadow-rose-500/10 ring-2 ring-rose-500/30' :
                             inCart
                               ? 'border-rose-500/50 bg-rose-500/5 shadow-sm'
                               : 'border-border/30 bg-card/40 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
@@ -703,6 +764,30 @@ export function PosModule() {
                         </Button>
                       ))}
                     </div>
+                  </div>
+                </div>
+
+                {/* Tax Mode Toggle */}
+                <div className="px-4 pb-2">
+                  <Label className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Tax Mode</Label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      { value: 'included', label: 'Included', icon: Percent },
+                      { value: 'excluded', label: 'Excluded', icon: ArrowUpDown },
+                      { value: 'none', label: 'No Tax', icon: X },
+                    ].map(mode => (
+                      <button
+                        key={mode.value}
+                        className={cn(
+                          'flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all text-center',
+                          posTaxMode === mode.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
+                        )}
+                        onClick={() => setPosTaxMode(mode.value as 'included' | 'excluded' | 'none')}
+                      >
+                        <mode.icon className={cn('size-3', posTaxMode === mode.value ? 'text-rose-500' : 'text-muted-foreground')} />
+                        <span className="text-[8px] font-medium">{mode.label}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -882,6 +967,29 @@ export function PosModule() {
                   ))}
                 </div>
               </div>
+              {/* Tax Mode Toggle (Mobile) */}
+              <div className="mb-3">
+                <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Tax Mode</Label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { value: 'included', label: 'Included', icon: Percent },
+                    { value: 'excluded', label: 'Excluded', icon: ArrowUpDown },
+                    { value: 'none', label: 'No Tax', icon: X },
+                  ].map(mode => (
+                    <button
+                      key={mode.value}
+                      className={cn(
+                        'flex flex-col items-center gap-1 p-2 rounded-xl border transition-all text-center',
+                        posTaxMode === mode.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
+                      )}
+                      onClick={() => setPosTaxMode(mode.value as 'included' | 'excluded' | 'none')}
+                    >
+                      <mode.icon className={cn('size-3.5', posTaxMode === mode.value ? 'text-rose-500' : 'text-muted-foreground')} />
+                      <span className="text-[9px] font-medium">{mode.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <Separator className="mb-3" />
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({totalItems} items)</span><span>{formatPKR(subtotal)}</span></div>
@@ -1029,12 +1137,16 @@ export function PosModule() {
             {/* Totals */}
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between"><span>Subtotal</span><span>{formatPKR(subtotal)}</span></div>
-              {taxSettings.taxMode !== 'none' && (
-                <div className="flex justify-between">
-                  <span>{taxSettings.taxName} ({parseFloat(taxSettings.taxRate)}%{taxSettings.taxMode === 'included' ? ' incl.' : ''})</span>
-                  <span>{formatPKR(taxSettings.taxMode === 'excluded' ? tax : includedTaxAmount)}</span>
-                </div>
-              )}
+              {posTaxMode !== 'none' && totalTax > 0 && (() => {
+                const taxItems = cart.filter(item => item.taxType !== 'none' && item.taxRate > 0)
+                const avgRate = taxItems.length > 0 ? taxItems.reduce((s, i) => s + i.taxRate, 0) / taxItems.length : 0
+                return (
+                  <div className="flex justify-between">
+                    <span>Sales Tax ({avgRate.toFixed(1)}% {posTaxMode === 'included' ? 'incl.' : 'excl.'})</span>
+                    <span>{formatPKR(totalTax)}</span>
+                  </div>
+                )
+              })()}
               {discountValue > 0 && <div className="flex justify-between text-emerald-600"><span>Discount</span><span>-{formatPKR(discountValue)}</span></div>}
               <Separator />
               <div className="flex justify-between text-base font-bold"><span>Total</span><span className="text-rose-600">{formatPKR(grandTotal)}</span></div>

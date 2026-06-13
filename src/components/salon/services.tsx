@@ -47,6 +47,9 @@ import {
   Loader2,
   ToggleLeft,
   ToggleRight,
+  DollarSign,
+  Percent,
+  Info,
 } from 'lucide-react'
 
 // ---- Types ----
@@ -65,6 +68,8 @@ interface Service {
   description: string | null
   duration: number
   price: number
+  taxRate: number
+  taxType: string
   isActive: boolean
   isPackage: boolean
   requirements: string | null
@@ -110,6 +115,32 @@ const categoryColorMap: Record<string, string> = {
   leaf: 'bg-lime-50 text-lime-600 border-lime-200',
 }
 
+const taxBadge = (service: Service) => {
+  const taxType = service.taxType || 'none'
+  const taxRate = service.taxRate || 0
+
+  if (taxType === 'none' || taxRate === 0) {
+    return <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-100 text-xs">No Tax</Badge>
+  }
+  if (taxType === 'included') {
+    return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-xs">{taxRate}% Incl.</Badge>
+  }
+  if (taxType === 'excluded') {
+    return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs">{taxRate}% Excl.</Badge>
+  }
+  return <Badge variant="secondary" className="text-xs">No Tax</Badge>
+}
+
+const initialFormState = {
+  name: '',
+  categoryId: '',
+  description: '',
+  duration: '',
+  price: '',
+  taxRate: '',
+  taxType: 'none',
+}
+
 export function ServicesModule() {
   const [categories, setCategories] = useState<ServiceCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -119,13 +150,7 @@ export function ServicesModule() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({
-    name: '',
-    categoryId: '',
-    description: '',
-    duration: '',
-    price: '',
-  })
+  const [form, setForm] = useState(initialFormState)
 
   const fetchServices = useCallback(async () => {
     try {
@@ -171,13 +196,15 @@ export function ServicesModule() {
           description: form.description || null,
           duration: parseInt(form.duration),
           price: parseFloat(form.price),
+          taxRate: parseFloat(form.taxRate) || 0,
+          taxType: form.taxType,
           isActive: true,
         }),
       })
       const json = await res.json()
       if (json.success) {
         setDialogOpen(false)
-        setForm({ name: '', categoryId: '', description: '', duration: '', price: '' })
+        setForm(initialFormState)
         fetchServices()
       }
     } catch (err) {
@@ -220,13 +247,15 @@ export function ServicesModule() {
           description: form.description || null,
           duration: parseInt(form.duration),
           price: parseFloat(form.price),
+          taxRate: parseFloat(form.taxRate) || 0,
+          taxType: form.taxType,
         }),
       })
       const json = await res.json()
       if (json.success) {
         setEditDialogOpen(false)
         setEditingService(null)
-        setForm({ name: '', categoryId: '', description: '', duration: '', price: '' })
+        setForm(initialFormState)
         fetchServices()
       }
     } catch (err) {
@@ -244,6 +273,8 @@ export function ServicesModule() {
       description: service.description || '',
       duration: String(service.duration),
       price: String(service.price),
+      taxRate: String(service.taxRate || ''),
+      taxType: service.taxType || 'none',
     })
     setEditDialogOpen(true)
   }
@@ -271,6 +302,12 @@ export function ServicesModule() {
   const totalServices = allServices.length
   const activeServices = allServices.filter((s) => s.isActive).length
   const inactiveServices = allServices.filter((s) => !s.isActive).length
+
+  const taxHelperText: Record<string, string> = {
+    none: 'No tax will be applied to this service',
+    included: 'Tax is already included in the service price. The price shown includes tax.',
+    excluded: 'Tax will be added on top of the service price. The price shown is before tax.',
+  }
 
   return (
     <div className="space-y-6">
@@ -395,6 +432,7 @@ export function ServicesModule() {
                                 <th className="pb-2 pr-4 font-medium text-muted-foreground">Service</th>
                                 <th className="pb-2 pr-4 font-medium text-muted-foreground">Duration</th>
                                 <th className="pb-2 pr-4 font-medium text-muted-foreground">Price</th>
+                                <th className="pb-2 pr-4 font-medium text-muted-foreground">Tax</th>
                                 <th className="pb-2 pr-4 font-medium text-muted-foreground">Status</th>
                                 <th className="pb-2 font-medium text-muted-foreground">Actions</th>
                               </tr>
@@ -420,6 +458,9 @@ export function ServicesModule() {
                                   </td>
                                   <td className="py-3 pr-4 font-medium">
                                     {formatCurrency(service.price)}
+                                  </td>
+                                  <td className="py-3 pr-4">
+                                    {taxBadge(service)}
                                   </td>
                                   <td className="py-3 pr-4">
                                     <Badge
@@ -494,6 +535,7 @@ export function ServicesModule() {
                         <th className="p-4 font-medium text-muted-foreground">Category</th>
                         <th className="p-4 font-medium text-muted-foreground">Duration</th>
                         <th className="p-4 font-medium text-muted-foreground">Price</th>
+                        <th className="p-4 font-medium text-muted-foreground">Tax</th>
                         <th className="p-4 font-medium text-muted-foreground">Status</th>
                         <th className="p-4 font-medium text-muted-foreground">Actions</th>
                       </tr>
@@ -523,6 +565,7 @@ export function ServicesModule() {
                               </div>
                             </td>
                             <td className="p-4 font-medium">{formatCurrency(service.price)}</td>
+                            <td className="p-4">{taxBadge(service)}</td>
                             <td className="p-4">
                               <Badge
                                 variant={service.isActive ? 'default' : 'secondary'}
@@ -579,70 +622,139 @@ export function ServicesModule() {
 
       {/* Add Service Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Service</DialogTitle>
             <DialogDescription>
               Create a new service for your salon catalog.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="svc-name">Service Name</Label>
-              <Input
-                id="svc-name"
-                placeholder="e.g., Premium Haircut"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="svc-category">Category</Label>
-              <Select
-                value={form.categoryId}
-                onValueChange={(val) => setForm((f) => ({ ...f, categoryId: val }))}
-              >
-                <SelectTrigger id="svc-category">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="svc-desc">Description</Label>
-              <Textarea
-                id="svc-desc"
-                placeholder="Brief description of the service"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="svc-duration">Duration (min)</Label>
-                <Input
-                  id="svc-duration"
-                  type="number"
-                  placeholder="60"
-                  value={form.duration}
-                  onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
-                />
+          <div className="space-y-6">
+            {/* Section 1: Basic Information */}
+            <div>
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 mb-4">
+                <Scissors className="size-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Basic Information</h3>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="svc-price">Price (PKR)</Label>
-                <Input
-                  id="svc-price"
-                  type="number"
-                  placeholder="5000"
-                  value={form.price}
-                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="svc-name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Name</Label>
+                  <Input
+                    id="svc-name"
+                    placeholder="e.g., Premium Haircut"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="svc-category" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category</Label>
+                  <Select
+                    value={form.categoryId}
+                    onValueChange={(val) => setForm((f) => ({ ...f, categoryId: val }))}
+                  >
+                    <SelectTrigger id="svc-category" className="h-11">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="svc-desc" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</Label>
+                  <Textarea
+                    id="svc-desc"
+                    placeholder="Brief description of the service"
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-b" />
+
+            {/* Section 2: Pricing & Duration */}
+            <div>
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 mb-4">
+                <DollarSign className="size-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pricing & Duration</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="svc-duration" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Duration (min)</Label>
+                  <Input
+                    id="svc-duration"
+                    type="number"
+                    placeholder="60"
+                    value={form.duration}
+                    onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="svc-price" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Price (PKR)</Label>
+                  <Input
+                    id="svc-price"
+                    type="number"
+                    placeholder="5000"
+                    value={form.price}
+                    onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                    className="h-11"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-b" />
+
+            {/* Section 3: Tax Configuration */}
+            <div>
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 mb-4">
+                <Percent className="size-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tax Configuration</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tax Type</Label>
+                  <Select
+                    value={form.taxType}
+                    onValueChange={(val) => setForm((f) => ({ ...f, taxType: val }))}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select tax type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Tax</SelectItem>
+                      <SelectItem value="included">Included in Price</SelectItem>
+                      <SelectItem value="excluded">Excluded from Price</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2">
+                    <Info className="size-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">{taxHelperText[form.taxType]}</p>
+                  </div>
+                </div>
+                {form.taxType !== 'none' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="svc-tax-rate" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tax Rate (%)</Label>
+                    <Input
+                      id="svc-tax-rate"
+                      type="number"
+                      placeholder="e.g., 16"
+                      value={form.taxRate}
+                      onChange={(e) => setForm((f) => ({ ...f, taxRate: e.target.value }))}
+                      className="h-11"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -660,66 +772,135 @@ export function ServicesModule() {
 
       {/* Edit Service Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Service</DialogTitle>
             <DialogDescription>
               Update service details.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-svc-name">Service Name</Label>
-              <Input
-                id="edit-svc-name"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-svc-category">Category</Label>
-              <Select
-                value={form.categoryId}
-                onValueChange={(val) => setForm((f) => ({ ...f, categoryId: val }))}
-              >
-                <SelectTrigger id="edit-svc-category">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-svc-desc">Description</Label>
-              <Textarea
-                id="edit-svc-desc"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-svc-duration">Duration (min)</Label>
-                <Input
-                  id="edit-svc-duration"
-                  type="number"
-                  value={form.duration}
-                  onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
-                />
+          <div className="space-y-6">
+            {/* Section 1: Basic Information */}
+            <div>
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 mb-4">
+                <Scissors className="size-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Basic Information</h3>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-svc-price">Price (PKR)</Label>
-                <Input
-                  id="edit-svc-price"
-                  type="number"
-                  value={form.price}
-                  onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-svc-name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Name</Label>
+                  <Input
+                    id="edit-svc-name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-svc-category" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category</Label>
+                  <Select
+                    value={form.categoryId}
+                    onValueChange={(val) => setForm((f) => ({ ...f, categoryId: val }))}
+                  >
+                    <SelectTrigger id="edit-svc-category" className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-svc-desc" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</Label>
+                  <Textarea
+                    id="edit-svc-desc"
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-b" />
+
+            {/* Section 2: Pricing & Duration */}
+            <div>
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 mb-4">
+                <DollarSign className="size-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pricing & Duration</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-svc-duration" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Duration (min)</Label>
+                  <Input
+                    id="edit-svc-duration"
+                    type="number"
+                    value={form.duration}
+                    onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-svc-price" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Price (PKR)</Label>
+                  <Input
+                    id="edit-svc-price"
+                    type="number"
+                    value={form.price}
+                    onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                    className="h-11"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-b" />
+
+            {/* Section 3: Tax Configuration */}
+            <div>
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 mb-4">
+                <Percent className="size-4 text-muted-foreground" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tax Configuration</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tax Type</Label>
+                  <Select
+                    value={form.taxType}
+                    onValueChange={(val) => setForm((f) => ({ ...f, taxType: val }))}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Select tax type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Tax</SelectItem>
+                      <SelectItem value="included">Included in Price</SelectItem>
+                      <SelectItem value="excluded">Excluded from Price</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2">
+                    <Info className="size-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">{taxHelperText[form.taxType]}</p>
+                  </div>
+                </div>
+                {form.taxType !== 'none' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-svc-tax-rate" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tax Rate (%)</Label>
+                    <Input
+                      id="edit-svc-tax-rate"
+                      type="number"
+                      placeholder="e.g., 16"
+                      value={form.taxRate}
+                      onChange={(e) => setForm((f) => ({ ...f, taxRate: e.target.value }))}
+                      className="h-11"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

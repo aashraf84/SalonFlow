@@ -172,6 +172,8 @@ model Service {
   description   String?
   duration      Int      // minutes
   price         Float
+  taxRate       Float    @default(0)   // percentage, e.g. 16 for 16%
+  taxType       String   @default("none") // none, included, excluded
   isActive      Boolean  @default(true)
   isPackage     Boolean  @default(false)
   requirements  String?

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { categoryId, name, description, duration, price, isActive, isPackage, requirements, afterCare } = body
+    const { categoryId, name, description, duration, price, taxRate, taxType, isActive, isPackage, requirements, afterCare } = body
 
     if (!categoryId || !name || !duration || price === undefined || price === null) {
       return NextResponse.json(
@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
         description,
         duration,
         price: parseFloat(String(price)),
+        taxRate: taxRate !== undefined ? parseFloat(String(taxRate)) : 0,
+        taxType: taxType || 'none',
         isActive: isActive ?? true,
         isPackage: isPackage ?? false,
         requirements,
@@ -98,6 +100,12 @@ export async function PATCH(request: NextRequest) {
     }
     if (data.duration !== undefined) {
       data.duration = parseInt(String(data.duration))
+    }
+    if (data.taxRate !== undefined) {
+      data.taxRate = parseFloat(String(data.taxRate))
+    }
+    if (data.taxType !== undefined) {
+      data.taxType = String(data.taxType)
     }
 
     const service = await db.service.update({

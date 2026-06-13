@@ -23,8 +23,9 @@ export async function POST() {
     })
 
     if (existing) {
-      const updatedRole = existing.role === 'admin' ? 'viewer' : existing.role
-      const updatedName = existing.name === 'Demo Admin' ? 'Demo Viewer' : existing.name
+      // Demo account always gets admin role (full access except owner module)
+      const updatedRole = 'admin'
+      const updatedName = 'Demo Admin'
 
       const token = await createToken({ userId: existing.id, email: existing.email, role: updatedRole })
 
@@ -49,13 +50,13 @@ export async function POST() {
       })
     }
 
-    // Create demo user with SHA-256 password hash
+    // Create demo user with SHA-256 password hash - admin role for full access
     const demoUser = await prisma.systemUser.create({
       data: {
         email: 'demo@salonflow.pk',
         password: DEMO_PASSWORD_SHA256,
-        name: 'Demo Viewer',
-        role: 'viewer',
+        name: 'Demo Admin',
+        role: 'admin',
         phone: '+92-300-1234567',
         isActive: true,
       }

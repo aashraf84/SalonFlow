@@ -136,8 +136,8 @@ function OwnerBadge() {
   )
 }
 
-// Modules restricted for viewer role
-const viewerRestrictedModules: SalonModule[] = ['owner', 'settings', 'pos']
+// Modules restricted for non-owner roles — only owner can access owner panel
+const viewerRestrictedModules: SalonModule[] = ['owner']
 
 // ─── Sidebar Nav Item ──────────────────────────────────────────────────────
 
@@ -203,6 +203,7 @@ export function MainAppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isViewer = user?.role === 'viewer'
   const isOwner = user?.role === 'owner'
+  const isNotOwner = user?.role !== 'owner'
 
   // Handle logout
   const handleLogout = async () => {
@@ -287,7 +288,7 @@ export function MainAppShell() {
                   {moduleConfig
                     .filter((m) => m.group === group)
                     .map((mod) => {
-                      const isRestricted = isViewer && viewerRestrictedModules.includes(mod.key)
+                      const isRestricted = isNotOwner && viewerRestrictedModules.includes(mod.key)
                       return (
                         <SidebarNavItem
                           key={mod.key}
@@ -295,7 +296,7 @@ export function MainAppShell() {
                           isActive={activeModule === mod.key}
                           onClick={() => {
                             if (isRestricted) {
-                              toast.error('This module requires admin access')
+                              toast.error('This module requires owner access')
                               return
                             }
                             setActiveModule(mod.key)
@@ -382,13 +383,13 @@ export function MainAppShell() {
                     {moduleConfig
                       .filter((m) => m.group === group)
                       .map((mod) => {
-                        const isRestricted = isViewer && viewerRestrictedModules.includes(mod.key)
+                        const isRestricted = isNotOwner && viewerRestrictedModules.includes(mod.key)
                         return (
                           <button
                             key={mod.key}
                             onClick={() => {
                               if (isRestricted) {
-                                toast.error('This module requires admin access')
+                                toast.error('This module requires owner access')
                                 return
                               }
                               setActiveModule(mod.key)
