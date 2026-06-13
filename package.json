@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "DATABASE_URL=\"postgresql://neondb_owner:npg_bIX6RYtJUC9m@ep-billowing-silence-aik4vnm2-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "DATABASE_URL=\"postgresql://neondb_owner:npg_bIX6RYtJUC9m@ep-billowing-silence-aik4vnm2-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&connection_limit=2&pool_timeout=20\" JWT_SECRET=\"salonflow-production-secret-2024\" NODE_OPTIONS='--unhandled-rejections=none --max-old-space-size=4096' pm2 start \"node node_modules/.bin/next start -p 3000 -H 0.0.0.0\" --name salonflow --no-daemon 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",

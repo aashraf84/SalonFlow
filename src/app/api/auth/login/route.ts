@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import bcrypt from 'bcryptjs'
 import { createToken } from '@/lib/jwt'
+import { createHash } from 'crypto'
+
+// Simple SHA-256 password verification (avoids bcryptjs memory issues)
+function verifyPassword(inputPassword: string, storedHash: string): boolean {
+  // Support both bcrypt format ($2b$...) and SHA-256 format
+  if (storedHash.startsWith('$2')) {
+    // For bcrypt hashes, use bcryptjs
+    try {
+      const { compareSync } = require('bcryptjs')
+      return compareSync(inputPassword, storedHash)
+    } catch {
+      return false
+    }
+  }
+  // For SHA-256 hashes
+  const inputHash = createHash('sha256').update(inputPassword).digest('hex')
+  return inputHash === storedHash
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Account is disabled. Contact administrator.' }, { status: 403 })
     }
 
-    const isValid = await bcrypt.compare(password, user.password)
+    const isValid = verifyPassword(password, user.password)
     if (!isValid) {
       return NextResponse.json({ success: false, error: 'Invalid email or password' }, { status: 401 })
     }
@@ -32,22 +49,13 @@ export async function POST(req: NextRequest) {
     // Create JWT token
     const token = await createToken({ userId: user.id, email: user.email, role: user.role })
 
-    // Update last login
-    await db.systemUser.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date(), lastLoginIp: req.headers.get('x-forwarded-for') || 'unknown' }
-    })
-
-    // Create session record
-    await db.userSession.create({
-      data: {
-        userId: user.id,
-        token,
-        deviceInfo: req.headers.get('user-agent') || 'unknown',
-        ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      }
-    })
+    // Update last login (non-critical)
+    try {
+      await db.systemUser.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date(), lastLoginIp: req.headers.get('x-forwarded-for') || 'unknown' }
+      })
+    } catch { /* non-critical */ }
 
     return NextResponse.json({
       success: true,

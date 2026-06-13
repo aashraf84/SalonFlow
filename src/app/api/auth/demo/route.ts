@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import bcrypt from 'bcryptjs'
 import { createToken } from '@/lib/jwt'
+import { createHash } from 'crypto'
+
+// SHA-256 hash for 'demo123' - lightweight alternative to bcrypt
+const DEMO_PASSWORD_SHA256 = 'd3ad9315b7be5dd53b31a273b3b3aba5defe700808305aa16a3062b76658a791'
 
 export async function POST() {
   try {
@@ -14,24 +17,12 @@ export async function POST() {
       // Generate a new token for the existing demo user
       const token = await createToken({ userId: existing.id, email: existing.email, role: existing.role })
 
-      await db.systemUser.update({
-        where: { id: existing.id },
-        data: { lastLoginAt: new Date() }
-      })
-
-      // Create session for existing user too (ensures session exists)
       try {
-        await db.userSession.create({
-          data: {
-            userId: existing.id,
-            token,
-            deviceInfo: 'Demo Session',
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          }
+        await db.systemUser.update({
+          where: { id: existing.id },
+          data: { lastLoginAt: new Date() }
         })
-      } catch {
-        // Session might already exist, ignore error
-      }
+      } catch { /* non-critical */ }
 
       return NextResponse.json({
         success: true,
@@ -47,12 +38,11 @@ export async function POST() {
       })
     }
 
-    // Create demo user
-    const hashedPassword = await bcrypt.hash('demo123', 10)
+    // Create demo user with SHA-256 password hash (no bcryptjs needed)
     const demoUser = await db.systemUser.create({
       data: {
         email: 'demo@salonflow.pk',
-        password: hashedPassword,
+        password: DEMO_PASSWORD_SHA256,
         name: 'Demo Admin',
         role: 'admin',
         phone: '+92-300-1234567',
@@ -61,20 +51,6 @@ export async function POST() {
     })
 
     const token = await createToken({ userId: demoUser.id, email: demoUser.email, role: demoUser.role })
-
-    // Create session
-    try {
-      await db.userSession.create({
-        data: {
-          userId: demoUser.id,
-          token,
-          deviceInfo: 'Demo Session',
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        }
-      })
-    } catch {
-      // Session creation error is non-critical
-    }
 
     return NextResponse.json({
       success: true,

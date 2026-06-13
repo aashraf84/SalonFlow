@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import {
   Lock, Key, Eye, EyeOff, ArrowRight, Sparkles, Shield,
   CheckCircle2, AlertCircle, Loader2, User, Fingerprint,
-  Monitor, Zap, Clock, Sun, Moon
+  Monitor, Zap, Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -143,7 +143,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   // Demo login animation
   const [demoTyping, setDemoTyping] = useState(false)
 
-  // ─── Initialize ───────────────────────────────────────────────────────────
+  // ─── Initialize (combined seed + activation check) ────────────────────────
   useEffect(() => {
     const init = async () => {
       // Get or create device ID
@@ -154,15 +154,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }
       setDeviceId(storedDeviceId)
 
-      // Seed demo data FIRST (ensures serial keys exist before activation check)
+      // Use combined init endpoint (seed + activation check in ONE request)
       try {
-        await fetch('/api/auth/seed', { method: 'GET' })
-      } catch { /* ignore seed errors */ }
-
-      // Check if device is already activated
-      try {
-        const res = await fetch(`/api/auth/activate?deviceId=${encodeURIComponent(storedDeviceId)}`)
+        const res = await fetch(`/api/auth/init?deviceId=${encodeURIComponent(storedDeviceId)}`)
         const json = await res.json()
+
         if (json.success && json.data?.activated) {
           setIsDeviceActivated(true)
           setPhase('login')
@@ -170,7 +166,20 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           setPhase('activate')
         }
       } catch {
-        setPhase('activate')
+        // Init failed - try just activation check without seed
+        try {
+          const res = await fetch(`/api/auth/activate?deviceId=${encodeURIComponent(storedDeviceId)}`)
+          const json = await res.json()
+          if (json.success && json.data?.activated) {
+            setIsDeviceActivated(true)
+            setPhase('login')
+          } else {
+            setPhase('activate')
+          }
+        } catch {
+          // Even activation check failed - show activate screen
+          setPhase('activate')
+        }
       }
     }
     init()
