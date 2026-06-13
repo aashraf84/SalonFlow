@@ -10,6 +10,14 @@ const nextConfig: NextConfig = {
     "127.0.0.1",
     "localhost",
   ],
+  headers: async () => [
+    {
+      source: "/api/:path*",
+      headers: [
+        { key: "Cache-Control", value: "no-store, no-cache, must-revalidate" },
+      ],
+    },
+  ],
 };
 
 export default nextConfig;

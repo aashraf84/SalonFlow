@@ -154,11 +154,38 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }
       setDeviceId(storedDeviceId)
 
-      // Use combined init endpoint (seed + activation check in ONE request)
-      try {
-        const res = await fetch(`/api/auth/init?deviceId=${encodeURIComponent(storedDeviceId)}`)
-        const json = await res.json()
+      // Use combined init endpoint with timeout and retry
+      const fetchWithTimeout = (url: string, timeoutMs: number) => {
+        const controller = new AbortController()
+        const id = setTimeout(() => controller.abort(), timeoutMs)
+        return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(id))
+      }
 
+      const maxRetries = 3
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const res = await fetchWithTimeout(`/api/auth/init?deviceId=${encodeURIComponent(storedDeviceId)}`, 15000)
+          const json = await res.json()
+
+          if (json.success && json.data?.activated) {
+            setIsDeviceActivated(true)
+            setPhase('login')
+          } else {
+            setPhase('activate')
+          }
+          return // success, exit
+        } catch (err) {
+          console.warn(`Init attempt ${attempt + 1} failed:`, err)
+          if (attempt < maxRetries - 1) {
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1))) // backoff
+          }
+        }
+      }
+
+      // All retries failed for init - try just activation check
+      try {
+        const res = await fetchWithTimeout(`/api/auth/activate?deviceId=${encodeURIComponent(storedDeviceId)}`, 10000)
+        const json = await res.json()
         if (json.success && json.data?.activated) {
           setIsDeviceActivated(true)
           setPhase('login')
@@ -166,20 +193,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           setPhase('activate')
         }
       } catch {
-        // Init failed - try just activation check without seed
-        try {
-          const res = await fetch(`/api/auth/activate?deviceId=${encodeURIComponent(storedDeviceId)}`)
-          const json = await res.json()
-          if (json.success && json.data?.activated) {
-            setIsDeviceActivated(true)
-            setPhase('login')
-          } else {
-            setPhase('activate')
-          }
-        } catch {
-          // Even activation check failed - show activate screen
-          setPhase('activate')
-        }
+        // Even activation check failed - show activate screen anyway
+        // User can still use Demo button which auto-activates
+        setPhase('activate')
       }
     }
     init()
@@ -196,6 +212,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setActivationError('')
 
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000)
+
       const res = await fetch('/api/auth/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -205,7 +224,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           deviceName: navigator.userAgent.split(' ').slice(-1)[0] || 'Unknown',
           browserInfo: navigator.userAgent.substring(0, 100),
         }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
+
       const json = await res.json()
 
       if (json.success) {
@@ -216,8 +238,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         setActivationError(json.error || 'Activation failed')
         setPhase('activate')
       }
-    } catch {
-      setActivationError('Connection error. Please try again.')
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        setActivationError('Request timed out. Please try again.')
+      } else {
+        setActivationError('Connection error. Please try again.')
+      }
       setPhase('activate')
     }
   }
@@ -233,11 +259,17 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setLoginError('')
 
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000)
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
+
       const json = await res.json()
 
       if (json.success) {
@@ -248,8 +280,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         setLoginError(json.error || 'Login failed')
         setPhase('login')
       }
-    } catch {
-      setLoginError('Connection error. Please try again.')
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        setLoginError('Request timed out. Please try again.')
+      } else {
+        setLoginError('Connection error. Please try again.')
+      }
       setPhase('login')
     }
   }
@@ -259,7 +295,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setDemoTyping(true)
 
     try {
-      const res = await fetch('/api/auth/demo', { method: 'POST' })
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000)
+
+      const res = await fetch('/api/auth/demo', {
+        method: 'POST',
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
       const json = await res.json()
 
       if (json.success) {
@@ -284,8 +328,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       } else {
         toast.error(json.error || 'Demo login failed')
       }
-    } catch {
-      toast.error('Connection error. Please try again.')
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        toast.error('Request timed out. Server may be starting up, please try again.')
+      } else {
+        toast.error('Connection error. Please try again.')
+      }
     }
     setDemoTyping(false)
   }
