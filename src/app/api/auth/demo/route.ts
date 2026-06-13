@@ -14,13 +14,17 @@ export async function POST() {
     })
 
     if (existing) {
-      // Generate a new token for the existing demo user
-      const token = await createToken({ userId: existing.id, email: existing.email, role: existing.role })
+      // Update existing demo user to viewer role if they still have old admin role
+      const updatedRole = existing.role === 'admin' ? 'viewer' : existing.role
+      const updatedName = existing.name === 'Demo Admin' ? 'Demo Viewer' : existing.name
+
+      // Generate a new token for the existing demo user (with updated role)
+      const token = await createToken({ userId: existing.id, email: existing.email, role: updatedRole })
 
       try {
         await db.systemUser.update({
           where: { id: existing.id },
-          data: { lastLoginAt: new Date() }
+          data: { lastLoginAt: new Date(), role: updatedRole, name: updatedName }
         })
       } catch { /* non-critical */ }
 
@@ -29,8 +33,8 @@ export async function POST() {
         data: {
           id: existing.id,
           email: existing.email,
-          name: existing.name,
-          role: existing.role,
+          name: updatedName,
+          role: updatedRole,
           avatar: existing.avatar,
           phone: existing.phone,
           token,
@@ -43,8 +47,8 @@ export async function POST() {
       data: {
         email: 'demo@salonflow.pk',
         password: DEMO_PASSWORD_SHA256,
-        name: 'Demo Admin',
-        role: 'admin',
+        name: 'Demo Viewer',
+        role: 'viewer',
         phone: '+92-300-1234567',
         isActive: true,
       }

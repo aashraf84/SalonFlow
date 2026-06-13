@@ -38,6 +38,7 @@ import {
   DollarSign,
   Truck,
   ClipboardList,
+  Lock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,6 +47,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // Dynamic imports - loaded on demand when user navigates to each module
 const DashboardModule = dynamic(() => import('@/components/salon/dashboard').then(mod => ({ default: mod.DashboardModule })), { ssr: false })
@@ -114,28 +116,54 @@ const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; gr
 
 const groups = ['Main', 'Operations', 'Business', 'Intelligence', 'Enterprise']
 
+// ─── View-Only Banner ──────────────────────────────────────────────────────
+function ViewOnlyBanner() {
+  return (
+    <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-center gap-2 text-amber-600 dark:text-amber-400 text-xs font-medium">
+      <Shield className="size-3.5" />
+      <span>View-Only Mode — You can browse all features but cannot make changes</span>
+    </div>
+  )
+}
+
+// ─── Owner Badge ───────────────────────────────────────────────────────────
+function OwnerBadge() {
+  return (
+    <div className="bg-rose-500/10 border-b border-rose-500/20 px-4 py-2 flex items-center justify-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium">
+      <Shield className="size-3.5" />
+      <span>Owner Access — Full system administration enabled</span>
+    </div>
+  )
+}
+
+// Modules restricted for viewer role
+const viewerRestrictedModules: SalonModule[] = ['owner', 'settings', 'pos']
+
 // ─── Sidebar Nav Item ──────────────────────────────────────────────────────
 
 function SidebarNavItem({
   mod,
   isActive,
   onClick,
+  isRestricted = false,
 }: {
   mod: typeof moduleConfig[number]
   isActive: boolean
   onClick: () => void
+  isRestricted?: boolean
 }) {
   return (
     <motion.button
       onClick={onClick}
       className={cn(
         'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200 relative',
-        isActive
+        isRestricted && 'opacity-40 cursor-not-allowed',
+        isActive && !isRestricted
           ? 'text-white'
           : 'text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04]'
       )}
-      whileHover={{ x: 2 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={!isRestricted ? { x: 2 } : undefined}
+      whileTap={!isRestricted ? { scale: 0.98 } : undefined}
       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
     >
       {isActive && (
@@ -149,7 +177,12 @@ function SidebarNavItem({
         {mod.icon}
       </span>
       <span className="relative z-10">{mod.label}</span>
-      {isActive && (
+      {isRestricted && (
+        <span className="relative z-10 ml-auto text-muted-foreground/50">
+          <Lock className="size-3" />
+        </span>
+      )}
+      {isActive && !isRestricted && (
         <motion.div
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -168,6 +201,8 @@ export function MainAppShell() {
   const { activeModule, setActiveModule } = useSalonStore()
   const { user, logout } = useAuthStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const isViewer = user?.role === 'viewer'
+  const isOwner = user?.role === 'owner'
 
   // Handle logout
   const handleLogout = async () => {
@@ -251,14 +286,24 @@ export function MainAppShell() {
                 <div className="space-y-0.5">
                   {moduleConfig
                     .filter((m) => m.group === group)
-                    .map((mod) => (
-                      <SidebarNavItem
-                        key={mod.key}
-                        mod={mod}
-                        isActive={activeModule === mod.key}
-                        onClick={() => setActiveModule(mod.key)}
-                      />
-                    ))}
+                    .map((mod) => {
+                      const isRestricted = isViewer && viewerRestrictedModules.includes(mod.key)
+                      return (
+                        <SidebarNavItem
+                          key={mod.key}
+                          mod={mod}
+                          isActive={activeModule === mod.key}
+                          onClick={() => {
+                            if (isRestricted) {
+                              toast.error('This module requires admin access')
+                              return
+                            }
+                            setActiveModule(mod.key)
+                          }}
+                          isRestricted={isRestricted}
+                        />
+                      )
+                    })}
                 </div>
               </div>
             ))}
@@ -336,26 +381,35 @@ export function MainAppShell() {
                   <div className="space-y-0.5">
                     {moduleConfig
                       .filter((m) => m.group === group)
-                      .map((mod) => (
-                        <button
-                          key={mod.key}
-                          onClick={() => {
-                            setActiveModule(mod.key)
-                            setMobileMenuOpen(false)
-                          }}
-                          className={cn(
-                            'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200',
-                            activeModule === mod.key
-                              ? 'bg-tahoe-accent text-white shadow-md shadow-tahoe-accent/20'
-                              : 'text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04]'
-                          )}
-                        >
-                          <span className="flex items-center justify-center w-5">
-                            {mod.icon}
-                          </span>
-                          <span>{mod.label}</span>
-                        </button>
-                      ))}
+                      .map((mod) => {
+                        const isRestricted = isViewer && viewerRestrictedModules.includes(mod.key)
+                        return (
+                          <button
+                            key={mod.key}
+                            onClick={() => {
+                              if (isRestricted) {
+                                toast.error('This module requires admin access')
+                                return
+                              }
+                              setActiveModule(mod.key)
+                              setMobileMenuOpen(false)
+                            }}
+                            className={cn(
+                              'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-200',
+                              isRestricted && 'opacity-40 cursor-not-allowed',
+                              activeModule === mod.key && !isRestricted
+                                ? 'bg-tahoe-accent text-white shadow-md shadow-tahoe-accent/20'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04]'
+                            )}
+                          >
+                            <span className="flex items-center justify-center w-5">
+                              {mod.icon}
+                            </span>
+                            <span>{mod.label}</span>
+                            {isRestricted && <Lock className="size-3 ml-auto text-muted-foreground/50" />}
+                          </button>
+                        )
+                      })}
                   </div>
                 </div>
               ))}
@@ -388,6 +442,9 @@ export function MainAppShell() {
 
       {/* ─── Main Content ─────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col lg:ml-[260px] min-h-screen">
+        {/* ─── Role Banner ─────────────────────────────────────────────────── */}
+        {isViewer && <ViewOnlyBanner />}
+        {isOwner && <OwnerBadge />}
         {/* ─── Tahoe Header ─────────────────────────────────────────────────── */}
         <header className="sticky top-0 z-30 header-vibrancy">
           <div className="flex items-center justify-between px-4 py-3 sm:px-6">

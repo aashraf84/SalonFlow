@@ -92,7 +92,7 @@ function DemoLoginButton({ onClick, disabled, compact = false }: { onClick: () =
           </div>
           <div className="flex-1 min-w-0">
             <p className={cn("font-bold text-white", compact ? "text-xs" : "text-sm")}>Try Demo Mode</p>
-            <p className="text-[10px] text-white/40">{compact ? 'Full access, no activation needed' : 'Skip activation & explore all features'}</p>
+            <p className="text-[10px] text-white/40">{compact ? 'View-only access, no activation needed' : 'View-only access — explore features without editing'}</p>
           </div>
         </div>
         <Button
@@ -111,7 +111,7 @@ function DemoLoginButton({ onClick, disabled, compact = false }: { onClick: () =
           ) : (
             <>
               <Zap className="size-4" />
-              Demo Login
+              Demo (View-Only)
             </>
           )}
         </Button>
@@ -355,7 +355,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <div className="relative">
                     <Key className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-white/40" />
                     <Input
-                      placeholder="Enter Serial Key (e.g. SALON-DEMO-2024-ACTIVATION)"
+                      placeholder="Enter Serial Key (e.g. SF-XXXX-XXXX-XXXXX)"
                       className="pl-11 h-11 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-xl focus:border-rose-400/50 focus:ring-rose-400/20"
                       value={serialKey}
                       onChange={e => setSerialKey(e.target.value.toUpperCase())}
@@ -364,20 +364,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     />
                   </div>
 
-                  {/* Available keys hint */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {['SALON-DEMO-2024-ACTIVATION', 'SALONFLOW-PRO-2024-LICENSE', 'SF-DEMO-2024-OWNER-ACTIV'].map(key => (
-                      <button
-                        key={key}
-                        type="button"
-                        className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/30 hover:text-white/60 hover:bg-white/10 hover:border-white/20 transition-all"
-                        onClick={() => setSerialKey(key)}
-                        disabled={phase === 'activating'}
-                      >
-                        {key}
-                      </button>
-                    ))}
-                  </div>
+                  {/* Serial key input help text */}
+                  <p className="text-[10px] text-white/25 text-center">
+                    Contact your administrator for a valid serial key
+                  </p>
 
                   {activationError && (
                     <motion.div
@@ -427,7 +417,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               >
                 <DemoLoginButton onClick={handleDemoLogin} disabled={demoTyping || phase === 'activating'} />
                 <p className="text-[9px] text-white/20 text-center mt-1.5">
-                  Full admin access with sample data. No activation required.
+                  View-only access with sample data. No activation required.
                 </p>
               </motion.div>
             </motion.div>
