@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { GlassCard, AnimatedMetricCard } from '@/components/salon/glass-card'
+import { GlassCard } from '@/components/salon/glass-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,7 +19,7 @@ import {
   Receipt, Wallet, Banknote, User, CheckCircle2, Clock, AlertCircle,
   ScanBarcode, Tag, Percent, Gift, Star, Printer, ChevronRight,
   Trash2, Loader2, Scissors, Package, ArrowRight, Sparkles, Hash,
-  ShoppingBag, Zap, TrendingUp, LayoutGrid, List, ArrowUpDown,
+  ShoppingBag, Zap, TrendingUp, ArrowUpDown,
   Timer, Users, HandCoins, CircleDot, Flame, Gem
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -99,7 +99,7 @@ export function PosModule() {
   const [showReceipt, setShowReceipt] = useState(false)
   const [completedInvoice, setCompletedInvoice] = useState<InvoiceType | null>(null)
   const [viewMode, setViewMode] = useState<'pos' | 'history'>('pos')
-  const [productView, setProductView] = useState<'grid' | 'list'>('grid')
+
 
   // POS Tax Mode State
   const [posTaxMode, setPosTaxMode] = useState<'included' | 'excluded' | 'none'>('included')
@@ -453,17 +453,9 @@ export function PosModule() {
   }
 
   return (
-    <div className="space-y-4 h-full">
-      {/* ─── Top Stats Bar ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <AnimatedMetricCard title="Today's Sales" value={formatPKR(todaySales)} subtitle={`${todayTransactions} transactions`} icon={DollarSign} accentGradient="from-emerald-500/20 to-teal-500/20" iconBg="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" delay={0} />
-        <AnimatedMetricCard title="Cart Total" value={formatPKR(grandTotal)} subtitle={`${totalItems} items`} icon={ShoppingCart} accentGradient="from-rose-500/20 to-pink-500/20" iconBg="bg-rose-500/10 text-rose-600 dark:text-rose-400" delay={0.05} />
-        <AnimatedMetricCard title="Est. Duration" value={`${Math.floor(totalDuration / 60)}h ${totalDuration % 60}m`} subtitle="Total service time" icon={Clock} accentGradient="from-blue-500/20 to-indigo-500/20" iconBg="bg-blue-500/10 text-blue-600 dark:text-blue-400" delay={0.1} />
-        <AnimatedMetricCard title="Avg. Transaction" value={formatPKR(invoices.length > 0 ? invoices.reduce((s, i) => s + i.totalAmount, 0) / invoices.length : 0)} subtitle="Per invoice" icon={TrendingUp} accentGradient="from-amber-500/20 to-orange-500/20" iconBg="bg-amber-500/10 text-amber-600 dark:text-amber-400" delay={0.15} />
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* ─── Mode Toggle ────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-3">
         <Button size="sm" variant={viewMode === 'pos' ? 'default' : 'outline'} className={cn('text-xs rounded-xl gap-1.5', viewMode === 'pos' && 'bg-tahoe-accent text-white')} onClick={() => setViewMode('pos')}>
           <ShoppingCart className="size-3.5" /> Point of Sale
         </Button>
@@ -473,8 +465,9 @@ export function PosModule() {
       </div>
 
       {viewMode === 'pos' ? (
-        /* ═══ POS LAYOUT — CART STICKY, PRODUCTS SCROLL ═════════════════════ */
-        <div className="flex gap-4" style={{ height: 'calc(100vh - 340px)', minHeight: '500px' }}>
+        <>
+        {/* ═══ POS LAYOUT — CART STICKY, PRODUCTS SCROLL ═════════════════════ */}
+        <div className="flex gap-4 flex-1 min-h-0">
           {/* ─── LEFT: Product Grid (SCROLLABLE) ─────────────────────────────── */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
             {/* Search & Category Filter — sticky top */}
@@ -507,158 +500,72 @@ export function PosModule() {
                         {cat.name}
                       </Button>
                     ))}
-                    {/* View Toggle */}
-                    <div className="ml-1 flex border border-border/50 rounded-lg overflow-hidden">
-                      <button className={cn('p-1.5 transition-colors', productView === 'grid' ? 'bg-tahoe-accent text-white' : 'text-muted-foreground hover:text-foreground')} onClick={() => setProductView('grid')}>
-                        <LayoutGrid className="size-3.5" />
-                      </button>
-                      <button className={cn('p-1.5 transition-colors', productView === 'list' ? 'bg-tahoe-accent text-white' : 'text-muted-foreground hover:text-foreground')} onClick={() => setProductView('list')}>
-                        <List className="size-3.5" />
-                      </button>
-                    </div>
                   </div>
                 </div>
               </GlassCard>
             </div>
 
-            {/* Service Grid/List — SCROLLABLE */}
+            {/* Service List — SCROLLABLE */}
             <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar" ref={serviceListRef}>
-              {productView === 'grid' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 pb-2">
-                  <AnimatePresence>
-                    {filteredServices.map((service, idx) => {
-                      const inCart = cart.find(i => i.id === service.id)
-                      return (
-                        <motion.button
-                          key={service.id}
-                          layout
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
-                          whileHover={{ scale: 1.03, y: -2 }}
-                          whileTap={{ scale: 0.97 }}
-                          onClick={() => handleServiceClick(service)}
-                          data-service-index={idx}
-                          className={cn(
-                            'relative text-left p-3 rounded-xl border transition-all duration-200 group',
-                            highlightedIndex === idx ? 'border-rose-500 bg-rose-500/10 shadow-md shadow-rose-500/10 ring-2 ring-rose-500/30' :
-                            inCart
-                              ? 'border-rose-500/50 bg-rose-500/5 shadow-md shadow-rose-500/10'
-                              : 'border-border/50 bg-card/60 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
-                          )}
-                        >
-                          {/* Category Badge */}
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 truncate">{service.categoryName}</span>
-                            {service.isPackage && (
-                              <Badge className="h-4 text-[8px] bg-amber-500/10 text-amber-600 border-amber-500/20 border px-1.5">PKG</Badge>
-                            )}
+              <div className="space-y-1 pb-2">
+                <AnimatePresence>
+                  {filteredServices.map((service, idx) => {
+                    const inCart = cart.find(i => i.id === service.id)
+                    return (
+                      <motion.button
+                        key={service.id}
+                        layout
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleServiceClick(service)}
+                        data-service-index={idx}
+                        className={cn(
+                          'w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-200 text-left group',
+                          highlightedIndex === idx ? 'border-rose-500 bg-rose-500/10 shadow-md shadow-rose-500/10 ring-2 ring-rose-500/30' :
+                          inCart
+                            ? 'border-rose-500/50 bg-rose-500/5 shadow-sm'
+                            : 'border-border/30 bg-card/40 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
+                        )}
+                      >
+                        <div className={cn('flex size-9 items-center justify-center rounded-lg shrink-0 text-sm', inCart ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/[0.03] text-muted-foreground')}>
+                          {categoryIcons[service.categoryName || ''] || '✨'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{service.name}</p>
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-2">
+                            <span>{service.categoryName}</span>
+                            <span className="flex items-center gap-0.5"><Timer className="size-2" />{service.duration}m</span>
+                          </p>
+                        </div>
+                        {service.isPackage && (
+                          <Badge className="h-4 text-[8px] bg-amber-500/10 text-amber-600 border-amber-500/20 border px-1.5 shrink-0">PKG</Badge>
+                        )}
+                        <span className="text-sm font-bold text-rose-600 dark:text-rose-400 shrink-0">{formatPKR(service.price)}</span>
+                        {inCart ? (
+                          <Badge className="h-5 text-[10px] bg-rose-500 text-white px-1.5 shrink-0">{inCart.quantity}×</Badge>
+                        ) : (
+                          <div className="flex size-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <Plus className="size-3" />
                           </div>
-
-                          {/* Service Name */}
-                          <p className="text-sm font-semibold leading-tight mb-1 line-clamp-2">{service.name}</p>
-
-                          {/* Price & Duration */}
-                          <div className="flex items-center justify-between mt-2">
-                            <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatPKR(service.price)}</span>
-                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                              <Timer className="size-2.5" />{service.duration}m
-                            </span>
-                          </div>
-
-                          {/* Cart Indicator */}
-                          {inCart && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold shadow-lg"
-                            >
-                              {inCart.quantity}
-                            </motion.div>
-                          )}
-
-                          {/* Hover Add Icon */}
-                          {!inCart && (
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex size-6 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
-                                <Plus className="size-3" />
-                              </div>
-                            </div>
-                          )}
-                        </motion.button>
-                      )
-                    })}
-                  </AnimatePresence>
-
-                  {filteredServices.length === 0 && (
-                    <div className="col-span-full p-12 text-center">
-                      <Package className="size-12 text-muted-foreground/20 mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">No services found</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* List View */
-                <div className="space-y-1 pb-2">
-                  <AnimatePresence>
-                    {filteredServices.map((service, idx) => {
-                      const inCart = cart.find(i => i.id === service.id)
-                      return (
-                        <motion.button
-                          key={service.id}
-                          layout
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -10 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleServiceClick(service)}
-                          data-service-index={idx}
-                          className={cn(
-                            'w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-200 text-left group',
-                            highlightedIndex === idx ? 'border-rose-500 bg-rose-500/10 shadow-md shadow-rose-500/10 ring-2 ring-rose-500/30' :
-                            inCart
-                              ? 'border-rose-500/50 bg-rose-500/5 shadow-sm'
-                              : 'border-border/30 bg-card/40 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
-                          )}
-                        >
-                          <div className={cn('flex size-9 items-center justify-center rounded-lg shrink-0 text-sm', inCart ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/[0.03] text-muted-foreground')}>
-                            {categoryIcons[service.categoryName || ''] || '✨'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{service.name}</p>
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-2">
-                              <span>{service.categoryName}</span>
-                              <span className="flex items-center gap-0.5"><Timer className="size-2" />{service.duration}m</span>
-                            </p>
-                          </div>
-                          {service.isPackage && (
-                            <Badge className="h-4 text-[8px] bg-amber-500/10 text-amber-600 border-amber-500/20 border px-1.5 shrink-0">PKG</Badge>
-                          )}
-                          <span className="text-sm font-bold text-rose-600 dark:text-rose-400 shrink-0">{formatPKR(service.price)}</span>
-                          {inCart ? (
-                            <Badge className="h-5 text-[10px] bg-rose-500 text-white px-1.5 shrink-0">{inCart.quantity}×</Badge>
-                          ) : (
-                            <div className="flex size-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                              <Plus className="size-3" />
-                            </div>
-                          )}
-                        </motion.button>
-                      )
-                    })}
-                  </AnimatePresence>
-                  {filteredServices.length === 0 && (
-                    <div className="p-12 text-center">
-                      <Package className="size-12 text-muted-foreground/20 mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">No services found</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                        )}
+                      </motion.button>
+                    )
+                  })}
+                </AnimatePresence>
+                {filteredServices.length === 0 && (
+                  <div className="p-12 text-center">
+                    <Package className="size-12 text-muted-foreground/20 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">No services found</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* ─── RIGHT: Cart (STATIC / STICKY) ────────────────────────────────── */}
-          <div className="w-[380px] shrink-0 flex flex-col overflow-hidden hidden lg:flex">
+          <div className="w-[460px] shrink-0 flex flex-col overflow-hidden hidden lg:flex">
             <div className="flex flex-col h-full rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-lg">
               {/* ── Customer Selector (static top) ── */}
               <div className="shrink-0 px-4 py-3 border-b border-border/50">
@@ -1050,6 +957,54 @@ export function PosModule() {
             </GlassCard>
           </div>
         </div>
+
+        {/* ─── Bottom Stats Bar ─────────────────────────────────────────────── */}
+        <div className="shrink-0 mt-3 rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl px-4 py-2.5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
+                <DollarSign className="size-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Today</p>
+                <p className="text-xs font-bold truncate">{formatPKR(todaySales)}</p>
+              </div>
+              <span className="text-[9px] text-muted-foreground ml-0.5">{todayTransactions} txn</span>
+            </div>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 shrink-0">
+                <ShoppingCart className="size-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Cart</p>
+                <p className="text-xs font-bold truncate">{formatPKR(grandTotal)}</p>
+              </div>
+              <span className="text-[9px] text-muted-foreground ml-0.5">{totalItems} items</span>
+            </div>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+                <Clock className="size-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Duration</p>
+                <p className="text-xs font-bold truncate">{Math.floor(totalDuration / 60)}h {totalDuration % 60}m</p>
+              </div>
+            </div>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                <TrendingUp className="size-3.5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Avg</p>
+                <p className="text-xs font-bold truncate">{formatPKR(invoices.length > 0 ? invoices.reduce((s, i) => s + i.totalAmount, 0) / invoices.length : 0)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        </>
       ) : (
         /* ═══ TRANSACTION HISTORY ═════════════════════════════════════════════ */
         <GlassCard className="overflow-hidden">
