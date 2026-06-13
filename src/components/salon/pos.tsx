@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   ShoppingCart, DollarSign, CreditCard, Search, Plus, Minus, X, Eye,
   Receipt, Wallet, Banknote, User, CheckCircle2, Clock, AlertCircle,
@@ -466,135 +467,141 @@ export function PosModule() {
 
       {viewMode === 'pos' ? (
         <>
-        {/* ═══ POS LAYOUT — CART STICKY, PRODUCTS SCROLL ═════════════════════ */}
+        {/* ═══ POS LAYOUT — SERVICES LEFT, CART RIGHT ═════════════════════ */}
         <div className="flex gap-4 flex-1 min-h-0">
-          {/* ─── LEFT: Product Grid (SCROLLABLE) ─────────────────────────────── */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {/* Search & Category Filter — sticky top */}
-            <div className="shrink-0 mb-3">
-              <GlassCard className="p-3" hover3d={false} animateOnMount={false}>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search services... (type, ↑↓ to navigate, Enter to add)"
-                      className="pl-10 h-10 text-sm rounded-xl bg-foreground/[0.02] border-border/50"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      onKeyDown={handleSearchKeyDown}
-                      ref={searchInputRef}
-                    />
-                    {searchQuery && (
-                      <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setSearchQuery('')}>
-                        <X className="size-3" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0 items-center">
-                    <Button size="sm" variant={selectedCategory === 'all' ? 'default' : 'outline'} className={cn('text-[10px] rounded-lg shrink-0 px-3', selectedCategory === 'all' && 'bg-tahoe-accent text-white')} onClick={() => setSelectedCategory('all')}>
-                      All
+          {/* ─── LEFT: Services / Search Area ─────────────────────────────── */}
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl">
+            {/* Search Bar — sticky top */}
+            <div className="shrink-0 px-4 py-3 border-b border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search / Scan service... (F1)"
+                    className="pl-10 h-10 text-sm rounded-xl bg-foreground/[0.02] border-border/50 focus:border-rose-500/50"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
+                    ref={searchInputRef}
+                  />
+                  {searchQuery && (
+                    <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setSearchQuery('')}>
+                      <X className="size-3" />
                     </Button>
-                    {categories.map(cat => (
-                      <Button key={cat.id} size="sm" variant={selectedCategory === cat.id ? 'default' : 'outline'} className={cn('text-[10px] rounded-lg shrink-0 px-3 gap-1', selectedCategory === cat.id && 'bg-tahoe-accent text-white')} onClick={() => setSelectedCategory(cat.id)}>
-                        <span>{categoryIcons[cat.name] || '✨'}</span>
-                        {cat.name}
-                      </Button>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              </GlassCard>
+                {/* Category Filter Dropdown */}
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-[160px] h-10 text-xs rounded-xl">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {categoryIcons[cat.name] || '✨'} {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Service List — SCROLLABLE */}
-            <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar" ref={serviceListRef}>
-              <div className="space-y-1 pb-2">
-                <AnimatePresence>
-                  {filteredServices.map((service, idx) => {
-                    const inCart = cart.find(i => i.id === service.id)
-                    return (
-                      <motion.button
-                        key={service.id}
-                        layout
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => handleServiceClick(service)}
-                        data-service-index={idx}
-                        className={cn(
-                          'w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-200 text-left group',
-                          highlightedIndex === idx ? 'border-rose-500 bg-rose-500/10 shadow-md shadow-rose-500/10 ring-2 ring-rose-500/30' :
-                          inCart
-                            ? 'border-rose-500/50 bg-rose-500/5 shadow-sm'
-                            : 'border-border/30 bg-card/40 hover:border-rose-500/30 hover:bg-rose-500/[0.03]'
-                        )}
-                      >
-                        <div className={cn('flex size-9 items-center justify-center rounded-lg shrink-0 text-sm', inCart ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/[0.03] text-muted-foreground')}>
-                          {categoryIcons[service.categoryName || ''] || '✨'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold truncate">{service.name}</p>
-                          <p className="text-[10px] text-muted-foreground flex items-center gap-2">
-                            <span>{service.categoryName}</span>
-                            <span className="flex items-center gap-0.5"><Timer className="size-2" />{service.duration}m</span>
-                          </p>
-                        </div>
-                        {service.isPackage && (
-                          <Badge className="h-4 text-[8px] bg-amber-500/10 text-amber-600 border-amber-500/20 border px-1.5 shrink-0">PKG</Badge>
-                        )}
-                        <span className="text-sm font-bold text-rose-600 dark:text-rose-400 shrink-0">{formatPKR(service.price)}</span>
-                        {inCart ? (
-                          <Badge className="h-5 text-[10px] bg-rose-500 text-white px-1.5 shrink-0">{inCart.quantity}×</Badge>
-                        ) : (
-                          <div className="flex size-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <Plus className="size-3" />
+            <div className="flex-1 overflow-y-auto custom-scrollbar" ref={serviceListRef}>
+              {searchQuery || selectedCategory !== 'all' ? (
+                <div className="space-y-0.5 p-2">
+                  <AnimatePresence>
+                    {filteredServices.map((service, idx) => {
+                      const inCart = cart.find(i => i.id === service.id)
+                      return (
+                        <motion.button
+                          key={service.id}
+                          layout
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleServiceClick(service)}
+                          data-service-index={idx}
+                          className={cn(
+                            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 text-left group',
+                            highlightedIndex === idx ? 'bg-rose-500/10 ring-1 ring-rose-500/30' :
+                            inCart
+                              ? 'bg-rose-500/[0.04]'
+                              : 'hover:bg-foreground/[0.02]'
+                          )}
+                        >
+                          <div className={cn('flex size-8 items-center justify-center rounded-lg shrink-0 text-xs', inCart ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/[0.03] text-muted-foreground')}>
+                            {categoryIcons[service.categoryName || ''] || '✨'}
                           </div>
-                        )}
-                      </motion.button>
-                    )
-                  })}
-                </AnimatePresence>
-                {filteredServices.length === 0 && (
-                  <div className="p-12 text-center">
-                    <Package className="size-12 text-muted-foreground/20 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">No services found</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold truncate">{service.name}</p>
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                              <span className="uppercase tracking-wide">{service.categoryName}</span>
+                              <span className="text-border">·</span>
+                              <span className="flex items-center gap-0.5"><Timer className="size-2" />{service.duration}m</span>
+                              {service.taxRate > 0 && service.taxType !== 'none' && (
+                                <>
+                                  <span className="text-border">·</span>
+                                  <span className="text-emerald-600">{service.taxRate}% tax</span>
+                                </>
+                              )}
+                            </p>
+                          </div>
+                          {service.isPackage && (
+                            <Badge className="h-4 text-[8px] bg-amber-500/10 text-amber-600 border-amber-500/20 border px-1.5 shrink-0">PKG</Badge>
+                          )}
+                          <span className="text-sm font-bold text-rose-600 dark:text-rose-400 shrink-0">{formatPKR(service.price)}</span>
+                          {inCart ? (
+                            <Badge className="h-5 text-[10px] bg-rose-500 text-white px-1.5 shrink-0">{inCart.quantity}×</Badge>
+                          ) : (
+                            <div className="flex size-6 items-center justify-center rounded-md bg-rose-500/10 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <Plus className="size-3" />
+                            </div>
+                          )}
+                        </motion.button>
+                      )
+                    })}
+                  </AnimatePresence>
+                  {filteredServices.length === 0 && (
+                    <div className="py-16 text-center">
+                      <Package className="size-10 text-muted-foreground/20 mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">No services found</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Empty State — no search active */
+                <div className="flex-1 flex flex-col items-center justify-center py-24 text-center">
+                  <div className="flex size-16 items-center justify-center rounded-2xl bg-foreground/[0.03] text-muted-foreground/30 mb-4">
+                    <ScanBarcode className="size-8" />
                   </div>
-                )}
-              </div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Search to add services</p>
+                  <p className="text-xs text-muted-foreground/60">Type a service name or scan barcode · <kbd className="px-1 py-0.5 rounded bg-foreground/5 text-[10px] font-mono">F1</kbd></p>
+                  <div className="mt-4 flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                    <span>↑↓ Navigate</span>
+                    <span>·</span>
+                    <span>Enter Add</span>
+                    <span>·</span>
+                    <span>{allServices.length} services loaded</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* ─── RIGHT: Cart (STATIC / STICKY) ────────────────────────────────── */}
           <div className="w-[460px] shrink-0 flex flex-col overflow-hidden hidden lg:flex">
             <div className="flex flex-col h-full rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl shadow-lg">
-              {/* ── Customer Selector (static top) ── */}
-              <div className="shrink-0 px-4 py-3 border-b border-border/50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className={cn('flex size-8 items-center justify-center rounded-lg shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
-                      <User className="size-4" />
-                    </div>
-                    {selectedCustomer ? (
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{selectedCustomer.phone} · <Star className="size-2.5 inline text-amber-500" /> {selectedCustomer.loyaltyTier}</p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Walk-in Customer</p>
-                    )}
-                  </div>
-                  <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg gap-1 shrink-0" onClick={() => setShowCustomerPicker(true)}>
-                    <User className="size-3" /> {selectedCustomer ? 'Change' : 'Select'}
-                  </Button>
-                </div>
-              </div>
-
-              {/* ── Cart Header (static) ── */}
-              <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-foreground/[0.01]">
+              {/* ── Cart Header (static top) ── */}
+              <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-border/50">
                 <div className="flex items-center gap-2">
-                  <ShoppingCart className="size-4 text-rose-500" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Current Order</span>
-                  <Badge variant="outline" className="text-[9px] h-5 px-1.5">{totalItems}</Badge>
+                  <div className="flex size-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500">
+                    <ShoppingCart className="size-3.5" />
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-wider">Current Sale</span>
+                  <Badge variant="outline" className="text-[9px] h-5 px-1.5">{totalItems} items</Badge>
                 </div>
                 {cart.length > 0 && (
                   <Button size="sm" variant="ghost" className="h-6 text-[10px] text-red-500 hover:text-red-600 gap-1" onClick={clearCart}>
@@ -603,128 +610,165 @@ export function PosModule() {
                 )}
               </div>
 
-              {/* ── Cart Items (SCROLLABLE within cart) ── */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
-                <div className="p-2">
-                  <AnimatePresence>
-                    {cart.length === 0 ? (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12 text-center">
-                        <ShoppingBag className="size-10 text-muted-foreground/15 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Tap services to add</p>
-                      </motion.div>
+              {/* ── Customer Selector (inline) ── */}
+              <div className="shrink-0 px-4 py-2 border-b border-border/50 bg-foreground/[0.01]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className={cn('flex size-6 items-center justify-center rounded-md shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
+                      <User className="size-3" />
+                    </div>
+                    {selectedCustomer ? (
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
+                        <p className="text-[9px] text-muted-foreground truncate">{selectedCustomer.phone}</p>
+                      </div>
                     ) : (
-                      cart.map(item => (
+                      <p className="text-[11px] text-muted-foreground">Walk-in Customer</p>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" className="h-6 text-[9px] rounded-md gap-1 shrink-0 px-2" onClick={() => setShowCustomerPicker(true)}>
+                    {selectedCustomer ? 'Change' : 'Select'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* ── Cart Items (SCROLLABLE) ── */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="flex size-14 items-center justify-center rounded-2xl bg-foreground/[0.03] text-muted-foreground/20 mb-3">
+                      <ShoppingBag className="size-7" />
+                    </div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">No items in sale</p>
+                    <p className="text-[10px] text-muted-foreground/60">Search services to add to the bill</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/30">
+                    <AnimatePresence>
+                      {cart.map(item => (
                         <motion.div
                           key={item.id}
                           layout
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -20 }}
-                          className="flex items-start gap-2 p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors group"
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, x: -30 }}
+                          className="px-4 py-3 hover:bg-foreground/[0.01] transition-colors group"
                         >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{item.name}{item.staffName && <span className="text-rose-500 ml-1">· {item.staffName}</span>}</p>
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                              <span>{item.category}</span>
-                              <span className="text-border">·</span>
-                              <span className="flex items-center gap-0.5"><Timer className="size-2" />{item.duration || 0}m</span>
-                            </p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <div className="flex items-center border border-border/50 rounded-lg overflow-hidden">
-                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, -1)}>
-                                  <Minus className="size-3" />
+                          {/* Item name + delete */}
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{item.name}</p>
+                              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <span>{item.category}</span>
+                                {item.staffName && <><span className="text-border">·</span><span className="text-rose-500">{item.staffName}</span></>}
+                              </p>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 shrink-0" onClick={() => removeFromCart(item.id)}>
+                              <X className="size-3" />
+                            </Button>
+                          </div>
+                          {/* Unit price + qty + line total */}
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground">{formatPKR(item.unitPrice)} each</span>
+                            <div className="flex items-center gap-3">
+                              {/* Quantity stepper */}
+                              <div className="flex items-center border border-border/50 rounded-md overflow-hidden">
+                                <button className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, -1)}>
+                                  <Minus className="size-2.5" />
                                 </button>
-                                <span className="h-6 w-6 flex items-center justify-center text-xs font-semibold">{item.quantity}</span>
-                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, 1)}>
-                                  <Plus className="size-3" />
+                                <span className="h-5 w-5 flex items-center justify-center text-[10px] font-bold">{item.quantity}</span>
+                                <button className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, 1)}>
+                                  <Plus className="size-2.5" />
                                 </button>
                               </div>
+                              <span className="text-xs font-bold min-w-[70px] text-right">{formatPKR(item.unitPrice * item.quantity - item.discount)}</span>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-xs font-bold">{formatPKR(item.unitPrice * item.quantity - item.discount)}</p>
-                            {item.quantity > 1 && <p className="text-[10px] text-muted-foreground">{formatPKR(item.unitPrice)} each</p>}
-                          </div>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 shrink-0" onClick={() => removeFromCart(item.id)}>
-                            <X className="size-3" />
-                          </Button>
                         </motion.div>
-                      ))
-                    )}
-                  </AnimatePresence>
-                </div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )}
               </div>
 
               {/* ── Cart Footer (STATIC bottom) ── */}
               <div className="shrink-0 border-t border-border/50">
-                {/* Discount Row */}
-                <div className="px-4 pt-3 pb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex size-6 items-center justify-center rounded-md bg-amber-500/10 text-amber-500">
-                      <Percent className="size-3" />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground flex-1">Discount</span>
-                    <div className="flex gap-0.5">
-                      {[0, 5, 10, 15, 20].map(pct => (
-                        <Button key={pct} size="sm" variant={discountPercent === pct ? 'default' : 'outline'} className={cn('h-5 text-[9px] px-1.5 rounded-md', discountPercent === pct && 'bg-tahoe-accent text-white')} onClick={() => { setDiscountPercent(pct); setCustomDiscount('') }}>
-                          {pct}%
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tax Mode Toggle */}
-                <div className="px-4 pb-2">
-                  <Label className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Tax Mode</Label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {[
-                      { value: 'included', label: 'Included', icon: Percent },
-                      { value: 'excluded', label: 'Excluded', icon: ArrowUpDown },
-                      { value: 'none', label: 'No Tax', icon: X },
-                    ].map(mode => (
-                      <button
-                        key={mode.value}
-                        className={cn(
-                          'flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all text-center',
-                          posTaxMode === mode.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
-                        )}
-                        onClick={() => setPosTaxMode(mode.value as 'included' | 'excluded' | 'none')}
-                      >
-                        <mode.icon className={cn('size-3', posTaxMode === mode.value ? 'text-rose-500' : 'text-muted-foreground')} />
-                        <span className="text-[8px] font-medium">{mode.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="px-4 pb-2">
-                  <Separator />
-                </div>
-
                 {/* Totals */}
-                <div className="px-4 pb-2 space-y-1 text-xs">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({totalItems} items)</span><span>{formatPKR(subtotal)}</span></div>
+                <div className="px-4 pt-3 pb-2 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatPKR(subtotal)}</span></div>
                   {renderTaxLine()}
                   {discountValue > 0 && (
-                    <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>-{formatPKR(discountValue)}</span></div>
+                    <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>−{formatPKR(discountValue)}</span></div>
                   )}
                 </div>
 
-                <div className="px-4 pb-2">
-                  <Separator />
-                </div>
+                <div className="px-4 pb-2"><Separator /></div>
 
+                {/* Grand Total */}
                 <div className="px-4 pb-2 flex justify-between items-center">
-                  <span className="text-sm font-bold">Grand Total</span>
-                  <motion.span key={grandTotal} initial={{ scale: 1.1 }} animate={{ scale: 1 }} className="text-xl font-black text-rose-600 dark:text-rose-400">
+                  <span className="text-sm font-bold">Net Total</span>
+                  <motion.span key={grandTotal} initial={{ scale: 1.1 }} animate={{ scale: 1 }} className="text-lg font-black text-rose-600 dark:text-rose-400">
                     {formatPKR(grandTotal)}
                   </motion.span>
                 </div>
 
+                {/* Discount + Tax Mode Row */}
+                <div className="px-4 pb-2 flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] rounded-md gap-1 flex-1">
+                        <Percent className="size-3" /> Discount {discountPercent > 0 ? `(${discountPercent}%)` : ''}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-2" align="start">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-semibold">Quick Discount</Label>
+                        <div className="flex gap-1">
+                          {[0, 5, 10, 15, 20].map(pct => (
+                            <Button key={pct} size="sm" variant={discountPercent === pct ? 'default' : 'outline'} className={cn('h-6 text-[10px] px-2 rounded-md', discountPercent === pct && 'bg-tahoe-accent text-white')} onClick={() => { setDiscountPercent(pct); setCustomDiscount('') }}>
+                              {pct}%
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn('h-7 text-[10px] rounded-md gap-1 flex-1', posTaxMode !== 'none' && 'border-rose-500/30 text-rose-600')}>
+                        {posTaxMode === 'included' ? <Percent className="size-3" /> : posTaxMode === 'excluded' ? <ArrowUpDown className="size-3" /> : <X className="size-3" />}
+                        Tax: {posTaxMode === 'included' ? 'Incl.' : posTaxMode === 'excluded' ? 'Excl.' : 'None'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-2" align="end">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-semibold">Tax Mode</Label>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { value: 'included', label: 'Included', icon: Percent },
+                            { value: 'excluded', label: 'Excluded', icon: ArrowUpDown },
+                            { value: 'none', label: 'No Tax', icon: X },
+                          ].map(mode => (
+                            <button
+                              key={mode.value}
+                              className={cn(
+                                'flex flex-col items-center gap-0.5 p-2 rounded-lg border transition-all text-center',
+                                posTaxMode === mode.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
+                              )}
+                              onClick={() => setPosTaxMode(mode.value as 'included' | 'excluded' | 'none')}
+                            >
+                              <mode.icon className={cn('size-3', posTaxMode === mode.value ? 'text-rose-500' : 'text-muted-foreground')} />
+                              <span className="text-[9px] font-medium">{mode.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
                 {/* Payment Method */}
                 <div className="px-4 pb-2">
-                  <Label className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Payment Method</Label>
                   <div className="grid grid-cols-4 gap-1">
                     {paymentMethods.map(pm => (
                       <TooltipProvider key={pm.value}>
@@ -750,24 +794,17 @@ export function PosModule() {
                   </div>
                 </div>
 
-                {/* Checkout Button */}
+                {/* Post Bill Button */}
                 <div className="px-4 pb-3">
                   <Button
-                    className="w-full h-11 text-sm font-bold rounded-xl gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/20"
+                    className="w-full h-12 text-sm font-bold rounded-xl gap-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-lg shadow-rose-500/20"
                     onClick={() => cart.length > 0 ? setShowCheckout(true) : toast.error('Cart is empty')}
                     disabled={cart.length === 0}
                   >
                     <Zap className="size-4" />
-                    Complete Sale — {formatPKR(grandTotal)}
+                    Post Bill — {formatPKR(grandTotal)}
+                    <span className="ml-auto text-[10px] opacity-70">Enter ↵</span>
                   </Button>
-                  <div className="flex gap-2 mt-2">
-                    <Button variant="outline" className="flex-1 h-7 text-[10px] rounded-lg gap-1" onClick={clearCart} disabled={cart.length === 0}>
-                      <Trash2 className="size-3" /> Clear
-                    </Button>
-                    <Button variant="outline" className="flex-1 h-7 text-[10px] rounded-lg gap-1" onClick={() => setViewMode('history')}>
-                      <Receipt className="size-3" /> History
-                    </Button>
-                  </div>
                 </div>
               </div>
             </div>
@@ -779,30 +816,30 @@ export function PosModule() {
             <GlassCard className="p-3" hover3d={false} animateOnMount={false}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className={cn('flex size-8 items-center justify-center rounded-lg shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
-                    <User className="size-4" />
+                  <div className={cn('flex size-7 items-center justify-center rounded-lg shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
+                    <User className="size-3.5" />
                   </div>
                   {selectedCustomer ? (
                     <div className="min-w-0">
                       <p className="text-xs font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{selectedCustomer.phone} · <Star className="size-2.5 inline text-amber-500" /> {selectedCustomer.loyaltyTier}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{selectedCustomer.phone}</p>
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">Walk-in Customer</p>
                   )}
                 </div>
                 <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg gap-1 shrink-0" onClick={() => setShowCustomerPicker(true)}>
-                  <User className="size-3" /> {selectedCustomer ? 'Change' : 'Select'}
+                  {selectedCustomer ? 'Change' : 'Select'}
                 </Button>
               </div>
             </GlassCard>
 
             {/* Cart Items */}
             <GlassCard className="p-0 overflow-hidden" hover3d={false} animateOnMount={false}>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-foreground/[0.01]">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
                 <div className="flex items-center gap-2">
-                  <ShoppingCart className="size-4 text-rose-500" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Current Order</span>
+                  <ShoppingCart className="size-3.5 text-rose-500" />
+                  <span className="text-xs font-bold uppercase tracking-wider">Current Sale</span>
                   <Badge variant="outline" className="text-[9px] h-5 px-1.5">{totalItems}</Badge>
                 </div>
                 {cart.length > 0 && (
@@ -812,108 +849,130 @@ export function PosModule() {
                 )}
               </div>
               <ScrollArea className="max-h-[280px]">
-                <div className="p-2">
-                  <AnimatePresence>
-                    {cart.length === 0 ? (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-12 text-center">
-                        <ShoppingBag className="size-10 text-muted-foreground/15 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Tap services to add</p>
-                      </motion.div>
-                    ) : (
-                      cart.map(item => (
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <ShoppingBag className="size-8 text-muted-foreground/15 mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">No items in sale</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/30">
+                    <AnimatePresence>
+                      {cart.map(item => (
                         <motion.div
                           key={item.id}
                           layout
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -20 }}
-                          className="flex items-start gap-2 p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors group"
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, x: -30 }}
+                          className="px-4 py-2.5 group"
                         >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{item.name}{item.staffName && <span className="text-rose-500 ml-1">· {item.staffName}</span>}</p>
-                            <p className="text-[10px] text-muted-foreground">{item.category} · {item.duration || 0}m</p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <div className="flex items-center border border-border/50 rounded-lg overflow-hidden">
-                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, -1)}>
-                                  <Minus className="size-3" />
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{item.name}</p>
+                              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <span>{item.category}</span>
+                                {item.staffName && <><span>·</span><span className="text-rose-500">{item.staffName}</span></>}
+                              </p>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-red-400 hover:text-red-500 shrink-0" onClick={() => removeFromCart(item.id)}>
+                              <X className="size-3" />
+                            </Button>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground">{formatPKR(item.unitPrice)} each</span>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center border border-border/50 rounded-md overflow-hidden">
+                                <button className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, -1)}>
+                                  <Minus className="size-2.5" />
                                 </button>
-                                <span className="h-6 w-6 flex items-center justify-center text-xs font-semibold">{item.quantity}</span>
-                                <button className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, 1)}>
-                                  <Plus className="size-3" />
+                                <span className="h-5 w-5 flex items-center justify-center text-[10px] font-bold">{item.quantity}</span>
+                                <button className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors" onClick={() => updateQuantity(item.id, 1)}>
+                                  <Plus className="size-2.5" />
                                 </button>
                               </div>
+                              <span className="text-xs font-bold">{formatPKR(item.unitPrice * item.quantity - item.discount)}</span>
                             </div>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-xs font-bold">{formatPKR(item.unitPrice * item.quantity - item.discount)}</p>
-                            {item.quantity > 1 && <p className="text-[10px] text-muted-foreground">{formatPKR(item.unitPrice)} each</p>}
-                          </div>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 shrink-0" onClick={() => removeFromCart(item.id)}>
-                            <X className="size-3" />
-                          </Button>
                         </motion.div>
-                      ))
-                    )}
-                  </AnimatePresence>
-                </div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                )}
               </ScrollArea>
             </GlassCard>
 
             {/* Cart Summary & Actions */}
             <GlassCard className="p-4" hover3d={false} animateOnMount={false}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-                  <Percent className="size-3.5" />
-                </div>
-                <span className="text-xs text-muted-foreground flex-1">Discount</span>
-                <div className="flex gap-1">
-                  {[0, 5, 10, 15, 20].map(pct => (
-                    <Button key={pct} size="sm" variant={discountPercent === pct ? 'default' : 'outline'} className={cn('h-6 text-[10px] px-2 rounded-md', discountPercent === pct && 'bg-tahoe-accent text-white')} onClick={() => { setDiscountPercent(pct); setCustomDiscount('') }}>
-                      {pct}%
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              {/* Tax Mode Toggle (Mobile) */}
-              <div className="mb-3">
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Tax Mode</Label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { value: 'included', label: 'Included', icon: Percent },
-                    { value: 'excluded', label: 'Excluded', icon: ArrowUpDown },
-                    { value: 'none', label: 'No Tax', icon: X },
-                  ].map(mode => (
-                    <button
-                      key={mode.value}
-                      className={cn(
-                        'flex flex-col items-center gap-1 p-2 rounded-xl border transition-all text-center',
-                        posTaxMode === mode.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
-                      )}
-                      onClick={() => setPosTaxMode(mode.value as 'included' | 'excluded' | 'none')}
-                    >
-                      <mode.icon className={cn('size-3.5', posTaxMode === mode.value ? 'text-rose-500' : 'text-muted-foreground')} />
-                      <span className="text-[9px] font-medium">{mode.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Separator className="mb-3" />
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({totalItems} items)</span><span>{formatPKR(subtotal)}</span></div>
+              <div className="space-y-1.5 text-xs mb-3">
+                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatPKR(subtotal)}</span></div>
                 {renderTaxLine()}
                 {discountValue > 0 && (
-                  <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>-{formatPKR(discountValue)}</span></div>
+                  <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>−{formatPKR(discountValue)}</span></div>
                 )}
               </div>
-              <Separator className="my-3" />
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-sm font-bold">Grand Total</span>
-                <motion.span key={grandTotal} initial={{ scale: 1.1 }} animate={{ scale: 1 }} className="text-xl font-black text-rose-600 dark:text-rose-400">
+              <Separator className="mb-3" />
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm font-bold">Net Total</span>
+                <motion.span key={grandTotal} initial={{ scale: 1.1 }} animate={{ scale: 1 }} className="text-lg font-black text-rose-600 dark:text-rose-400">
                   {formatPKR(grandTotal)}
                 </motion.span>
               </div>
+              {/* Discount + Tax */}
+              <div className="flex items-center gap-2 mb-3">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-7 text-[10px] rounded-md gap-1 flex-1">
+                      <Percent className="size-3" /> Discount {discountPercent > 0 ? `(${discountPercent}%)` : ''}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2" align="start">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-semibold">Quick Discount</Label>
+                      <div className="flex gap-1">
+                        {[0, 5, 10, 15, 20].map(pct => (
+                          <Button key={pct} size="sm" variant={discountPercent === pct ? 'default' : 'outline'} className={cn('h-6 text-[10px] px-2 rounded-md', discountPercent === pct && 'bg-tahoe-accent text-white')} onClick={() => { setDiscountPercent(pct); setCustomDiscount('') }}>
+                            {pct}%
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn('h-7 text-[10px] rounded-md gap-1 flex-1', posTaxMode !== 'none' && 'border-rose-500/30 text-rose-600')}>
+                      {posTaxMode === 'included' ? <Percent className="size-3" /> : posTaxMode === 'excluded' ? <ArrowUpDown className="size-3" /> : <X className="size-3" />}
+                      Tax: {posTaxMode === 'included' ? 'Incl.' : posTaxMode === 'excluded' ? 'Excl.' : 'None'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-2" align="end">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-semibold">Tax Mode</Label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { value: 'included', label: 'Included', icon: Percent },
+                          { value: 'excluded', label: 'Excluded', icon: ArrowUpDown },
+                          { value: 'none', label: 'No Tax', icon: X },
+                        ].map(mode => (
+                          <button
+                            key={mode.value}
+                            className={cn(
+                              'flex flex-col items-center gap-0.5 p-2 rounded-lg border transition-all text-center',
+                              posTaxMode === mode.value ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-border/50 hover:border-border'
+                            )}
+                            onClick={() => setPosTaxMode(mode.value as 'included' | 'excluded' | 'none')}
+                          >
+                            <mode.icon className={cn('size-3', posTaxMode === mode.value ? 'text-rose-500' : 'text-muted-foreground')} />
+                            <span className="text-[9px] font-medium">{mode.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {/* Payment Method */}
               <div className="mb-3">
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 block">Payment Method</Label>
                 <div className="grid grid-cols-4 gap-1.5">
                   {paymentMethods.map(pm => (
                     <TooltipProvider key={pm.value}>
@@ -944,16 +1003,8 @@ export function PosModule() {
                 disabled={cart.length === 0}
               >
                 <Zap className="size-4" />
-                Complete Sale — {formatPKR(grandTotal)}
+                Post Bill — {formatPKR(grandTotal)}
               </Button>
-              <div className="flex gap-2 mt-2">
-                <Button variant="outline" className="flex-1 h-8 text-[10px] rounded-lg gap-1" onClick={clearCart} disabled={cart.length === 0}>
-                  <Trash2 className="size-3" /> Clear
-                </Button>
-                <Button variant="outline" className="flex-1 h-8 text-[10px] rounded-lg gap-1" onClick={() => setViewMode('history')}>
-                  <Receipt className="size-3" /> History
-                </Button>
-              </div>
             </GlassCard>
           </div>
         </div>
