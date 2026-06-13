@@ -20,6 +20,7 @@ import {
   Eye,
   Key,
   LogOut,
+  Percent,
 } from 'lucide-react'
 import {
   Card,
@@ -64,6 +65,8 @@ export default function SettingsModule() {
   const [business, setBusiness] = useState({
     currency: 'PKR',
     taxRate: '16',
+    taxMode: 'none', // 'none', 'included', 'excluded'
+    taxName: 'Sales Tax',
     bookingBuffer: '15',
     maxAdvanceBooking: '30',
     cancellationPolicy: '',
@@ -124,6 +127,8 @@ export default function SettingsModule() {
             ...prev,
             currency: d.business.business_currency || prev.currency,
             taxRate: d.business.business_taxRate || prev.taxRate,
+            taxMode: d.business.business_taxMode || prev.taxMode,
+            taxName: d.business.business_taxName || prev.taxName,
             bookingBuffer: d.business.business_bookingBuffer || prev.bookingBuffer,
             maxAdvanceBooking: d.business.business_maxAdvanceBooking || prev.maxAdvanceBooking,
             cancellationPolicy: d.business.business_cancellationPolicy || prev.cancellationPolicy,
@@ -367,45 +372,71 @@ export default function SettingsModule() {
         <TabsContent value="business" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Currency & Tax</CardTitle>
+              <CardTitle>Currency</CardTitle>
               <CardDescription>
-                Configure currency and tax settings for invoicing
+                Configure currency settings for invoicing
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
-                  <Select
-                    value={business.currency}
-                    onValueChange={(v) =>
-                      setBusiness({ ...business, currency: v })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PKR">PKR - Pakistani Rupee</SelectItem>
-                      <SelectItem value="AED">AED - UAE Dirham</SelectItem>
-                      <SelectItem value="SAR">SAR - Saudi Riyal</SelectItem>
-                      <SelectItem value="USD">USD - US Dollar</SelectItem>
-                      <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tax-rate">Tax Rate (%)</Label>
-                  <Input
-                    id="tax-rate"
-                    type="number"
-                    value={business.taxRate}
-                    onChange={(e) =>
-                      setBusiness({ ...business, taxRate: e.target.value })
-                    }
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Select
+                  value={business.currency}
+                  onValueChange={(v) =>
+                    setBusiness({ ...business, currency: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PKR">PKR - Pakistani Rupee</SelectItem>
+                    <SelectItem value="AED">AED - UAE Dirham</SelectItem>
+                    <SelectItem value="SAR">SAR - Saudi Riyal</SelectItem>
+                    <SelectItem value="USD">USD - US Dollar</SelectItem>
+                    <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Percent className="size-4" /> Sales Tax Configuration
+              </CardTitle>
+              <CardDescription>Configure how tax is applied to POS billing</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Tax Mode</Label>
+                <Select value={business.taxMode} onValueChange={(v) => setBusiness({...business, taxMode: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Tax — Don't show tax on billing</SelectItem>
+                    <SelectItem value="included">Included Tax — Tax is already in the price</SelectItem>
+                    <SelectItem value="excluded">Excluded Tax — Tax is added on top of price</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  {business.taxMode === 'none' && 'Tax will not be shown or calculated on POS billing'}
+                  {business.taxMode === 'included' && 'Prices already include tax. Tax amount will be shown for transparency.'}
+                  {business.taxMode === 'excluded' && 'Tax will be calculated and added on top of the subtotal'}
+                </p>
+              </div>
+              {business.taxMode !== 'none' && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Tax Name</Label>
+                    <Input value={business.taxName} onChange={(e) => setBusiness({...business, taxName: e.target.value})} placeholder="e.g. GST, Sales Tax, Service Tax" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tax Rate (%)</Label>
+                    <Input type="number" value={business.taxRate} onChange={(e) => setBusiness({...business, taxRate: e.target.value})} placeholder="16" />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

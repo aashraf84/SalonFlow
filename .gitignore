@@ -53,3 +53,11 @@ server.log
 # Skills directory
 /skills/tool-results/
 tool-results/
+*.png
+db/custom.db-shm
+db/custom.db-wal
+.zscripts/
+mini-services/auth-service/
+start.sh
+server.js
+settings-screenshot.png

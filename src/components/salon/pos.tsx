@@ -40,7 +40,7 @@ interface CustomerType {
 
 interface CartItem {
   id: string; itemType: string; name: string; unitPrice: number; quantity: number
-  duration?: number; staffId?: string; discount: number; notes?: string
+  duration?: number; staffId?: string; staffName?: string; discount: number; notes?: string
   category?: string
 }
 
@@ -99,6 +99,18 @@ export function PosModule() {
   const [viewMode, setViewMode] = useState<'pos' | 'history'>('pos')
   const [productView, setProductView] = useState<'grid' | 'list'>('grid')
 
+  // Staff Picker State
+  const [staffList, setStaffList] = useState<{id: string; firstName: string; lastName: string; role: string; specialization?: string; avatar?: string}[]>([])
+  const [showStaffPicker, setShowStaffPicker] = useState(false)
+  const [pendingService, setPendingService] = useState<ServiceType & {categoryName?: string; categoryId?: string} | null>(null)
+
+  // Tax Settings State
+  const [taxSettings, setTaxSettings] = useState<{ taxMode: string; taxRate: string; taxName: string }>({
+    taxMode: 'none',
+    taxRate: '0',
+    taxName: 'Tax',
+  })
+
   // ─── Data Fetching ──────────────────────────────────────────────────────
   const fetchInvoices = useCallback(async () => {
     try {
@@ -124,14 +136,38 @@ export function PosModule() {
     } catch { toast.error('Failed to load customers') }
   }, [])
 
+  const fetchStaff = useCallback(async () => {
+    try {
+      const res = await fetch('/api/staff')
+      const json = await res.json()
+      if (json.success) setStaffList(json.data)
+    } catch {}
+  }, [])
+
+  const fetchTaxSettings = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings')
+      const json = await res.json()
+      if (json.success) {
+        const g = json.data.grouped
+        const business = g.business || {}
+        setTaxSettings({
+          taxMode: business.business_taxMode || 'none',
+          taxRate: business.business_taxRate || '0',
+          taxName: business.business_taxName || 'Tax',
+        })
+      }
+    } catch {}
+  }, [])
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      await Promise.all([fetchInvoices(), fetchServices(), fetchCustomers()])
+      await Promise.all([fetchInvoices(), fetchServices(), fetchCustomers(), fetchStaff(), fetchTaxSettings()])
       setLoading(false)
     }
     load()
-  }, [fetchInvoices, fetchServices, fetchCustomers])
+  }, [fetchInvoices, fetchServices, fetchCustomers, fetchStaff, fetchTaxSettings])
 
   // ─── Cart Logic ─────────────────────────────────────────────────────────
   const allServices = useMemo(() =>
@@ -149,27 +185,37 @@ export function PosModule() {
     [allServices, searchQuery, selectedCategory]
   )
 
-  const addToCart = useCallback((service: ServiceType & { categoryName?: string; categoryId?: string }) => {
+  const handleServiceClick = useCallback((service: ServiceType & { categoryName?: string; categoryId?: string }) => {
+    setPendingService(service)
+    setShowStaffPicker(true)
+  }, [])
+
+  const handleStaffSelect = useCallback((staffId: string | null, staffName: string | null) => {
+    if (!pendingService) return
     setCart(prev => {
-      const existing = prev.find(item => item.id === service.id)
+      const existing = prev.find(item => item.id === pendingService.id && item.staffId === staffId)
       if (existing) {
         return prev.map(item =>
-          item.id === service.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === pendingService.id && item.staffId === staffId ? { ...item, quantity: item.quantity + 1 } : item
         )
       }
       return [...prev, {
-        id: service.id,
+        id: pendingService.id,
         itemType: 'service',
-        name: service.name,
-        unitPrice: service.price,
+        name: pendingService.name,
+        unitPrice: pendingService.price,
         quantity: 1,
-        duration: service.duration,
+        duration: pendingService.duration,
         discount: 0,
-        category: service.categoryName
+        category: pendingService.categoryName,
+        staffId: staffId || undefined,
+        staffName: staffName || undefined,
       }]
     })
-    toast.success(`${service.name} added`, { duration: 1200 })
-  }, [])
+    toast.success(`${pendingService.name} added${staffName ? ` — ${staffName}` : ''}`, { duration: 1200 })
+    setShowStaffPicker(false)
+    setPendingService(null)
+  }, [pendingService])
 
   const removeFromCart = useCallback((id: string) => {
     setCart(prev => prev.filter(item => item.id !== id))
@@ -194,10 +240,11 @@ export function PosModule() {
 
   // ─── Calculations ───────────────────────────────────────────────────────
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity) - item.discount, 0), [cart])
-  const taxRate = 0.05
-  const tax = subtotal * taxRate
+  const taxRate = taxSettings.taxMode === 'none' ? 0 : (parseFloat(taxSettings.taxRate) || 0) / 100
+  const tax = taxSettings.taxMode === 'excluded' ? subtotal * taxRate : 0
+  const includedTaxAmount = taxSettings.taxMode === 'included' ? subtotal * taxRate / (1 + taxRate) : 0
   const discountValue = subtotal * discountPercent / 100
-  const grandTotal = subtotal + tax - discountValue
+  const grandTotal = taxSettings.taxMode === 'excluded' ? subtotal + tax - discountValue : subtotal - discountValue
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
   const totalDuration = cart.reduce((sum, item) => sum + (item.duration || 0) * item.quantity, 0)
 
@@ -222,7 +269,7 @@ export function PosModule() {
           customerId: selectedCustomer?.id || null,
           type: 'service',
           subtotal,
-          tax,
+          tax: taxSettings.taxMode === 'excluded' ? tax : includedTaxAmount,
           discount: discountValue,
           totalAmount: grandTotal,
           paymentMethod,
@@ -235,6 +282,7 @@ export function PosModule() {
             unitPrice: item.unitPrice,
             discount: item.discount,
             total: (item.unitPrice * item.quantity) - item.discount,
+            staffId: item.staffId,
           })),
         }),
       })
@@ -258,6 +306,13 @@ export function PosModule() {
     const c = completedInvoice.customer
     const w = window.open('', '_blank')
     if (!w) return
+
+    // Determine tax line for receipt
+    const receiptTaxLine = taxSettings.taxMode === 'none' ? '' :
+      taxSettings.taxMode === 'included'
+        ? `<tr><td>${taxSettings.taxName} (${parseFloat(taxSettings.taxRate)}% incl.)</td><td>${formatPKR(includedTaxAmount)}</td></tr>`
+        : `<tr><td>${taxSettings.taxName} (${parseFloat(taxSettings.taxRate)}%)</td><td>${formatPKR(tax)}</td></tr>`
+
     w.document.write(`<!DOCTYPE html><html><head><title>Receipt ${completedInvoice.invoiceNumber}</title>
     <style>
       @page { size: 80mm auto; margin: 0; }
@@ -295,7 +350,7 @@ export function PosModule() {
     <div class="line"></div>
     <table>
       <tr><td>Subtotal</td><td>${formatPKR(completedInvoice.subtotal)}</td></tr>
-      ${completedInvoice.tax > 0 ? `<tr><td>Tax (5%)</td><td>${formatPKR(completedInvoice.tax)}</td></tr>` : ''}
+      ${receiptTaxLine}
       ${completedInvoice.discount > 0 ? `<tr><td>Discount</td><td>-${formatPKR(completedInvoice.discount)}</td></tr>` : ''}
     </table>
     <div class="double-line"></div>
@@ -325,6 +380,19 @@ export function PosModule() {
           </div>
           <Skeleton className="h-[500px] rounded-2xl" />
         </div>
+      </div>
+    )
+  }
+
+  // ─── Tax display helper ─────────────────────────────────────────────────
+  const renderTaxLine = (className?: string) => {
+    if (taxSettings.taxMode === 'none') return null
+    return (
+      <div className={cn('flex justify-between', className)}>
+        <span className="text-muted-foreground">
+          {taxSettings.taxName} ({parseFloat(taxSettings.taxRate)}%{taxSettings.taxMode === 'included' ? ' incl.' : ''})
+        </span>
+        <span>{formatPKR(taxSettings.taxMode === 'excluded' ? tax : includedTaxAmount)}</span>
       </div>
     )
   }
@@ -412,7 +480,7 @@ export function PosModule() {
                           exit={{ opacity: 0, scale: 0.9 }}
                           whileHover={{ scale: 1.03, y: -2 }}
                           whileTap={{ scale: 0.97 }}
-                          onClick={() => addToCart(service)}
+                          onClick={() => handleServiceClick(service)}
                           className={cn(
                             'relative text-left p-3 rounded-xl border transition-all duration-200 group',
                             inCart
@@ -484,7 +552,7 @@ export function PosModule() {
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: -10 }}
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => addToCart(service)}
+                          onClick={() => handleServiceClick(service)}
                           className={cn(
                             'w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-200 text-left group',
                             inCart
@@ -587,7 +655,7 @@ export function PosModule() {
                           className="flex items-start gap-2 p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors group"
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{item.name}</p>
+                            <p className="text-xs font-semibold truncate">{item.name}{item.staffName && <span className="text-rose-500 ml-1">· {item.staffName}</span>}</p>
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
                               <span>{item.category}</span>
                               <span className="text-border">·</span>
@@ -645,7 +713,7 @@ export function PosModule() {
                 {/* Totals */}
                 <div className="px-4 pb-2 space-y-1 text-xs">
                   <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({totalItems} items)</span><span>{formatPKR(subtotal)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Tax (5%)</span><span>{formatPKR(tax)}</span></div>
+                  {renderTaxLine()}
                   {discountValue > 0 && (
                     <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>-{formatPKR(discountValue)}</span></div>
                   )}
@@ -770,7 +838,7 @@ export function PosModule() {
                           className="flex items-start gap-2 p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors group"
                         >
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate">{item.name}</p>
+                            <p className="text-xs font-semibold truncate">{item.name}{item.staffName && <span className="text-rose-500 ml-1">· {item.staffName}</span>}</p>
                             <p className="text-[10px] text-muted-foreground">{item.category} · {item.duration || 0}m</p>
                             <div className="flex items-center gap-2 mt-1.5">
                               <div className="flex items-center border border-border/50 rounded-lg overflow-hidden">
@@ -817,7 +885,7 @@ export function PosModule() {
               <Separator className="mb-3" />
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({totalItems} items)</span><span>{formatPKR(subtotal)}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Tax (5%)</span><span>{formatPKR(tax)}</span></div>
+                {renderTaxLine()}
                 {discountValue > 0 && (
                   <div className="flex justify-between text-emerald-600"><span>Discount ({discountPercent}%)</span><span>-{formatPKR(discountValue)}</span></div>
                 )}
@@ -950,7 +1018,7 @@ export function PosModule() {
             <div className="space-y-1">
               {cart.map(item => (
                 <div key={item.id} className="flex justify-between text-xs">
-                  <span>{item.name} × {item.quantity}</span>
+                  <span>{item.name}{item.staffName ? ` (${item.staffName})` : ''} × {item.quantity}</span>
                   <span className="font-semibold">{formatPKR(item.unitPrice * item.quantity - item.discount)}</span>
                 </div>
               ))}
@@ -961,7 +1029,12 @@ export function PosModule() {
             {/* Totals */}
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between"><span>Subtotal</span><span>{formatPKR(subtotal)}</span></div>
-              <div className="flex justify-between"><span>Tax (5%)</span><span>{formatPKR(tax)}</span></div>
+              {taxSettings.taxMode !== 'none' && (
+                <div className="flex justify-between">
+                  <span>{taxSettings.taxName} ({parseFloat(taxSettings.taxRate)}%{taxSettings.taxMode === 'included' ? ' incl.' : ''})</span>
+                  <span>{formatPKR(taxSettings.taxMode === 'excluded' ? tax : includedTaxAmount)}</span>
+                </div>
+              )}
               {discountValue > 0 && <div className="flex justify-between text-emerald-600"><span>Discount</span><span>-{formatPKR(discountValue)}</span></div>}
               <Separator />
               <div className="flex justify-between text-base font-bold"><span>Total</span><span className="text-rose-600">{formatPKR(grandTotal)}</span></div>
@@ -1078,6 +1151,56 @@ export function PosModule() {
               </div>
             </ScrollArea>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Staff Picker ──────────────────────────────────────────────────── */}
+      <Dialog open={showStaffPicker} onOpenChange={(open) => { setShowStaffPicker(open); if (!open) setPendingService(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="size-5 text-rose-500" /> Select Staff
+            </DialogTitle>
+          </DialogHeader>
+          {pendingService && (
+            <div className="space-y-3 py-2">
+              <div className="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20">
+                <p className="text-xs font-semibold">{pendingService.name}</p>
+                <p className="text-[10px] text-muted-foreground">{formatPKR(pendingService.price)} · {pendingService.duration}m</p>
+              </div>
+              <ScrollArea className="max-h-64">
+                <div className="space-y-1">
+                  <button
+                    className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors text-left"
+                    onClick={() => handleStaffSelect(null, null)}
+                  >
+                    <div className="flex size-8 items-center justify-center rounded-lg bg-foreground/5 text-muted-foreground">
+                      <Plus className="size-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold">No Staff (Skip)</p>
+                      <p className="text-[10px] text-muted-foreground">Add without assigning staff</p>
+                    </div>
+                  </button>
+                  {staffList.map(staff => (
+                    <button
+                      key={staff.id}
+                      className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors text-left"
+                      onClick={() => handleStaffSelect(staff.id, `${staff.firstName} ${staff.lastName}`)}
+                    >
+                      <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold">
+                        {staff.firstName.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{staff.firstName} {staff.lastName}</p>
+                        <p className="text-[10px] text-muted-foreground">{staff.specialization || staff.role}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
