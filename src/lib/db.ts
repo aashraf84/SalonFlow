@@ -5,13 +5,28 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
+// Create PrismaClient with connection pooling for Neon PostgreSQL
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.NODE_ENV === 'production' ? [] : ['error'],
+    log: process.env.NODE_ENV === 'production' ? ['error'] : ['error', 'warn'],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+
+// ─── Runtime sanity check ────────────────────────────────────────────────────
+// Verify critical models exist on the Prisma Client
+const _requiredModels = ['deviceActivation', 'serialKey', 'systemUser'] as const
+for (const model of _requiredModels) {
+  if (!(model in db)) {
+    console.error(`❌ Prisma Client is missing model: ${model}. Available: ${Object.keys(db).filter(k => !k.startsWith('_') && !k.startsWith('$') && typeof (db as any)[k] === 'object').join(', ')}`)
+  }
+}
 
 /**
  * Graceful shutdown - disconnect Prisma when process exits

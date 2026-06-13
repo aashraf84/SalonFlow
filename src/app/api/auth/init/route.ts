@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { PrismaClient } from '@prisma/client'
 
-// Combined init endpoint: seeds data + checks activation in ONE request
-// NOTE: Does NOT create users - use /api/auth/demo or /api/auth/seed for that
-// This avoids the bcryptjs import which can cause memory issues
+// Create a fresh PrismaClient directly to avoid stale cached instances
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+})
+
 export async function GET(req: NextRequest) {
   try {
     const deviceId = req.nextUrl.searchParams.get('deviceId') || ''
 
-    // ─── Step 1: Seed serial keys only (lightweight, no bcryptjs needed) ────
+    // ─── Step 1: Seed serial keys (lightweight, no bcryptjs needed) ────
     try {
-      // Create demo serial key (upsert to avoid unique constraint errors)
-      await db.serialKey.upsert({
+      await prisma.serialKey.upsert({
         where: { key: 'SALON-DEMO-2024-ACTIVATION' },
         update: { maxDevices: 999, status: 'available' },
         create: {
@@ -23,8 +28,7 @@ export async function GET(req: NextRequest) {
         }
       })
 
-      // Create pro serial key
-      await db.serialKey.upsert({
+      await prisma.serialKey.upsert({
         where: { key: 'SALONFLOW-PRO-2024-LICENSE' },
         update: { maxDevices: 10, status: 'available' },
         create: {
@@ -38,8 +42,7 @@ export async function GET(req: NextRequest) {
         }
       })
 
-      // Create owner serial key
-      await db.serialKey.upsert({
+      await prisma.serialKey.upsert({
         where: { key: 'SF-DEMO-2024-OWNER-ACTIV' },
         update: { maxDevices: 50, status: 'available' },
         create: {
@@ -61,13 +64,13 @@ export async function GET(req: NextRequest) {
 
     if (deviceId) {
       try {
-        const activation = await db.deviceActivation.findUnique({
+        const activation = await prisma.deviceActivation.findUnique({
           where: { deviceId }
         })
 
         if (activation && activation.status === 'active') {
           if (activation.expiresAt && new Date() > activation.expiresAt) {
-            await db.deviceActivation.update({
+            await prisma.deviceActivation.update({
               where: { id: activation.id },
               data: { status: 'expired' }
             })
@@ -91,10 +94,9 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Init error:', error)
     const errorMsg = error?.message || String(error)
-    const errorCode = error?.code || error?.errorCode || 'UNKNOWN'
     return NextResponse.json({
       success: false,
-      error: `Initialization failed: ${errorMsg} (${errorCode})`,
+      error: `Initialization failed: ${errorMsg}`,
     }, { status: 500 })
   }
 }

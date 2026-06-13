@@ -21,6 +21,13 @@ export async function GET() {
     checks.database = `error: ${dbError.message} (${dbError.code || 'UNKNOWN'})`
   }
 
+  // Check Prisma Client models
+  const criticalModels = ['deviceActivation', 'serialKey', 'systemUser', 'branch', 'appointment']
+  checks.models = {}
+  for (const model of criticalModels) {
+    checks.models[model] = !!(db as any)[model]
+  }
+
   // Test serial key table access
   try {
     const count = await db.serialKey.count()

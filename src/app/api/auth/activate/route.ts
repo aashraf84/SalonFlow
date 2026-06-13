@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { PrismaClient } from '@prisma/client'
+
+// Create a fresh PrismaClient directly in this module to avoid stale cached instances
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+})
 
 export async function POST(req: NextRequest) {
   try {
+    // Validate Prisma Client has required models
+    if (!prisma.deviceActivation || !prisma.serialKey) {
+      const availableModels = Object.keys(prisma).filter(k => !k.startsWith('_') && !k.startsWith('$') && typeof (prisma as any)[k] === 'object')
+      console.error('❌ Missing Prisma models! Available:', availableModels.join(', '))
+      return NextResponse.json({
+        success: false,
+        error: `Database client not properly initialized. Missing models. Available: ${availableModels.join(', ')}`,
+      }, { status: 500 })
+    }
+
     const body = await req.json()
     const { deviceId, serialKey, deviceName, browserInfo } = body
 
@@ -11,14 +30,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if device is already activated
-    const existingActivation = await db.deviceActivation.findUnique({
+    const existingActivation = await prisma.deviceActivation.findUnique({
       where: { deviceId }
     })
 
     if (existingActivation && existingActivation.status === 'active') {
       // Check if activation has expired
       if (existingActivation.expiresAt && new Date() > existingActivation.expiresAt) {
-        await db.deviceActivation.update({
+        await prisma.deviceActivation.update({
           where: { id: existingActivation.id },
           data: { status: 'expired' }
         })
@@ -32,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate serial key against SerialKey table
-    const keyRecord = await db.serialKey.findUnique({
+    const keyRecord = await prisma.serialKey.findUnique({
       where: { key: serialKey }
     })
 
@@ -46,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     // Check if key has expired based on validUntil date
     if (keyRecord.validUntil && new Date() > keyRecord.validUntil) {
-      await db.serialKey.update({
+      await prisma.serialKey.update({
         where: { id: keyRecord.id },
         data: { status: 'expired' }
       })
@@ -59,8 +78,7 @@ export async function POST(req: NextRequest) {
 
     // Activate or re-activate the device
     if (existingActivation) {
-      // Re-activate: update existing record instead of creating new one (avoids unique constraint violation)
-      const activation = await db.deviceActivation.update({
+      const activation = await prisma.deviceActivation.update({
         where: { id: existingActivation.id },
         data: {
           serialKey,
@@ -74,8 +92,7 @@ export async function POST(req: NextRequest) {
         }
       })
 
-      // Increment activation count on the serial key
-      await db.serialKey.update({
+      await prisma.serialKey.update({
         where: { key: serialKey },
         data: {
           activeDevices: { increment: 1 },
@@ -95,7 +112,7 @@ export async function POST(req: NextRequest) {
     }
 
     // New activation
-    const activation = await db.deviceActivation.create({
+    const activation = await prisma.deviceActivation.create({
       data: {
         deviceId,
         serialKey,
@@ -107,8 +124,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    // Increment activation count on the serial key
-    await db.serialKey.update({
+    await prisma.serialKey.update({
       where: { key: serialKey },
       data: {
         activeDevices: { increment: 1 },
@@ -132,7 +148,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: false,
       error: `Activation failed: ${errorMsg} (${errorCode})`,
-      debug: process.env.NODE_ENV !== 'production' ? { stack: error?.stack } : undefined,
     }, { status: 500 })
   }
 }
@@ -146,7 +161,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Device ID is required' }, { status: 400 })
     }
 
-    const activation = await db.deviceActivation.findUnique({
+    const activation = await prisma.deviceActivation.findUnique({
       where: { deviceId }
     })
 
@@ -156,7 +171,7 @@ export async function GET(req: NextRequest) {
 
     // Check if activation has expired
     if (activation.expiresAt && new Date() > activation.expiresAt) {
-      await db.deviceActivation.update({
+      await prisma.deviceActivation.update({
         where: { id: activation.id },
         data: { status: 'expired' }
       })

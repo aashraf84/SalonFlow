@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { PrismaClient } from '@prisma/client'
 import { createToken } from '@/lib/jwt'
 import { createHash } from 'crypto'
+
+// Create a fresh PrismaClient directly to avoid stale cached instances
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+})
 
 // Simple SHA-256 password verification (avoids bcryptjs memory issues)
 function verifyPassword(inputPassword: string, storedHash: string): boolean {
   // Support both bcrypt format ($2b$...) and SHA-256 format
   if (storedHash.startsWith('$2')) {
-    // For bcrypt hashes, use bcryptjs
     try {
       const { compareSync } = require('bcryptjs')
       return compareSync(inputPassword, storedHash)
@@ -29,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Email and password are required' }, { status: 400 })
     }
 
-    const user = await db.systemUser.findUnique({
+    const user = await prisma.systemUser.findUnique({
       where: { email: email.toLowerCase() }
     })
 
@@ -51,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     // Update last login (non-critical)
     try {
-      await db.systemUser.update({
+      await prisma.systemUser.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date(), lastLoginIp: req.headers.get('x-forwarded-for') || 'unknown' }
       })
@@ -69,8 +77,12 @@ export async function POST(req: NextRequest) {
         token,
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error)
-    return NextResponse.json({ success: false, error: 'Login failed' }, { status: 500 })
+    const errorMsg = error?.message || String(error)
+    return NextResponse.json({
+      success: false,
+      error: `Login failed: ${errorMsg}`,
+    }, { status: 500 })
   }
 }
