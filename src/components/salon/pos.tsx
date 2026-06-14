@@ -62,7 +62,7 @@ interface InvoiceItemType {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-const formatPKR = (amount: number) => `Rs. ${amount.toLocaleString('en-PK')}`
+const formatPKR = (amount: number) => `Rs. ${amount.toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 const formatDate = (d: string) => new Date(d).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 const categoryIcons: Record<string, string> = {
@@ -408,18 +408,24 @@ export function PosModule() {
   // ─── Calculations ───────────────────────────────────────────────────────
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity) - item.discount, 0), [cart])
 
-  // Calculate per-item tax
+  // Calculate embedded tax (tax is already included in service prices)
+  // e.g. Rs. 1000 with 5% tax included → embedded tax = 1000 × (5/105) = Rs. 47.62
   const totalTax = useMemo(() => {
     return cart.reduce((sum, item) => {
       if (item.taxType === 'none' || !item.taxRate || item.taxRate <= 0) return sum
       const itemSubtotal = (item.unitPrice * item.quantity) - item.discount
-      return sum + (itemSubtotal * item.taxRate / 100)
+      // Extract tax from inclusive price: price × (rate / (100 + rate))
+      return sum + (itemSubtotal * item.taxRate / (100 + item.taxRate))
     }, 0)
   }, [cart])
 
   const discountValue = subtotal * discountPercent / 100
   const grandTotal = useMemo(() => {
-    if (posTaxMode === 'included') return subtotal + totalTax - discountValue
+    // Tax is already embedded in service prices:
+    // - Included: show price as-is (tax already in price, no adjustment)
+    // - Excluded: remove the embedded tax from the bill
+    // - None: no tax concept, price as-is
+    if (posTaxMode === 'included') return subtotal - discountValue
     if (posTaxMode === 'excluded') return subtotal - totalTax - discountValue
     return subtotal - discountValue  // 'none'
   }, [subtotal, totalTax, discountValue, posTaxMode])
@@ -493,7 +499,9 @@ export function PosModule() {
     const receiptTaxItems = cart.filter(item => item.taxType !== 'none' && item.taxRate > 0)
     const receiptAvgRate = receiptTaxItems.length > 0 ? receiptTaxItems.reduce((s, i) => s + i.taxRate, 0) / receiptTaxItems.length : 0
     const receiptTaxLine = (posTaxMode === 'none' || totalTax <= 0) ? '' :
-      `<tr><td>Sales Tax (${receiptAvgRate.toFixed(1)}% ${posTaxMode === 'included' ? 'incl.' : 'excl.'})</td><td>${formatPKR(totalTax)}</td></tr>`
+      posTaxMode === 'included'
+        ? `<tr><td>Sales Tax (${receiptAvgRate.toFixed(1)}% incl. in price)</td><td>${formatPKR(totalTax)}</td></tr>`
+        : `<tr><td>Tax Removed (−${receiptAvgRate.toFixed(1)}%)</td><td>−${formatPKR(totalTax)}</td></tr>`
 
     w.document.write(`<!DOCTYPE html><html><head><title>Receipt ${completedInvoice.invoiceNumber}</title>
     <style>
@@ -571,12 +579,24 @@ export function PosModule() {
     if (posTaxMode === 'none' || totalTax <= 0) return null
     const taxItems = cart.filter(item => item.taxType !== 'none' && item.taxRate > 0)
     const avgRate = taxItems.length > 0 ? taxItems.reduce((s, i) => s + i.taxRate, 0) / taxItems.length : 0
+    if (posTaxMode === 'included') {
+      // Tax is included in price — show as info, doesn't affect total
+      return (
+        <div className={cn('flex justify-between', className)}>
+          <span className="text-muted-foreground">
+            Sales Tax ({avgRate.toFixed(1)}% incl. in price)
+          </span>
+          <span className="text-muted-foreground">{formatPKR(totalTax)}</span>
+        </div>
+      )
+    }
+    // Tax excluded — show as deduction from total
     return (
-      <div className={cn('flex justify-between', className)}>
-        <span className="text-muted-foreground">
-          Sales Tax ({avgRate.toFixed(1)}% {posTaxMode === 'included' ? 'incl.' : 'excl.'})
+      <div className={cn('flex justify-between text-emerald-600', className)}>
+        <span>
+          Tax Removed (−{avgRate.toFixed(1)}%)
         </span>
-        <span>{formatPKR(totalTax)}</span>
+        <span>−{formatPKR(totalTax)}</span>
       </div>
     )
   }
@@ -720,7 +740,7 @@ export function PosModule() {
                   <div className="divide-y divide-border/30">
                     <AnimatePresence>
                       {cart.map(item => {
-                        const itemTax = (item.taxType !== 'none' && item.taxRate > 0) ? ((item.unitPrice * item.quantity - item.discount) * item.taxRate / 100) : 0
+                        const itemTax = (item.taxType !== 'none' && item.taxRate > 0) ? ((item.unitPrice * item.quantity - item.discount) * item.taxRate / (100 + item.taxRate)) : 0
                         return (
                           <motion.div
                             key={item.id}
@@ -739,7 +759,7 @@ export function PosModule() {
                                   </span>
                                   <p className="text-sm font-semibold truncate">{item.name}</p>
                                   {item.taxRate > 0 && item.taxType !== 'none' && (
-                                    <Badge className="h-4 text-[8px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 border px-1.5 shrink-0">{item.taxRate}% {item.taxType === 'included' ? 'incl.' : 'excl.'}</Badge>
+                                    <Badge className="h-4 text-[8px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20 border px-1.5 shrink-0">{item.taxRate}% tax incl.</Badge>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground ml-8">
@@ -779,7 +799,7 @@ export function PosModule() {
                                   <p className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatPKR(item.unitPrice * item.quantity - item.discount)}</p>
                                   <p className="text-[10px] text-muted-foreground">{formatPKR(item.unitPrice)} × {item.quantity}{item.discount > 0 ? ` −${formatPKR(item.discount)}` : ''}</p>
                                   {itemTax > 0 && (
-                                    <p className="text-[10px] text-emerald-600">+ {formatPKR(itemTax)} tax</p>
+                                    <p className="text-[10px] text-emerald-600">incl. {formatPKR(itemTax)} tax</p>
                                   )}
                                 </div>
                               </div>
@@ -828,7 +848,7 @@ export function PosModule() {
                               {service.taxRate > 0 && service.taxType !== 'none' && (
                                 <>
                                   <span className="text-border">·</span>
-                                  <span className="text-emerald-600">{service.taxRate}% tax</span>
+                                  <span className="text-emerald-600">{service.taxRate}% tax incl.</span>
                                 </>
                               )}
                             </p>
@@ -1239,10 +1259,18 @@ export function PosModule() {
               {posTaxMode !== 'none' && totalTax > 0 && (() => {
                 const taxItems = cart.filter(item => item.taxType !== 'none' && item.taxRate > 0)
                 const avgRate = taxItems.length > 0 ? taxItems.reduce((s, i) => s + i.taxRate, 0) / taxItems.length : 0
+                if (posTaxMode === 'included') {
+                  return (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Sales Tax ({avgRate.toFixed(1)}% incl. in price)</span>
+                      <span>{formatPKR(totalTax)}</span>
+                    </div>
+                  )
+                }
                 return (
-                  <div className="flex justify-between">
-                    <span>Sales Tax ({avgRate.toFixed(1)}% {posTaxMode === 'included' ? 'incl.' : 'excl.'})</span>
-                    <span>{formatPKR(totalTax)}</span>
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Tax Removed (−{avgRate.toFixed(1)}%)</span>
+                    <span>−{formatPKR(totalTax)}</span>
                   </div>
                 )
               })()}
