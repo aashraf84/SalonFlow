@@ -843,6 +843,426 @@ async function getTaxReport(dateFrom: Date, dateTo: Date) {
   }
 }
 
+// 11. Daily Closeout Report
+async function getDailyCloseoutReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { in: ['paid', 'partial'] },
+    },
+    include: { items: true },
+  })
+
+  const expenses = await db.expense.findMany({
+    where: { date: { gte: dateFrom, lte: dateTo } },
+  })
+
+  const totalRevenue = invoices.reduce((s, i) => s + i.totalAmount, 0)
+  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
+  const totalTax = invoices.reduce((s, i) => s + i.tax, 0)
+  const totalDiscount = invoices.reduce((s, i) => s + i.discount, 0)
+  const netCashPosition = totalRevenue - totalExpenses
+
+  const paymentMethodBreakdown: Record<string, number> = {}
+  invoices.forEach((i) => {
+    paymentMethodBreakdown[i.paymentMethod] = (paymentMethodBreakdown[i.paymentMethod] || 0) + i.totalAmount
+  })
+
+  const dailySummary: Record<string, { revenue: number; expenses: number; tax: number; discount: number; invoices: number; net: number }> = {}
+  invoices.forEach((i) => {
+    const day = format(i.createdAt, 'yyyy-MM-dd')
+    if (!dailySummary[day]) dailySummary[day] = { revenue: 0, expenses: 0, tax: 0, discount: 0, invoices: 0, net: 0 }
+    dailySummary[day].revenue += i.totalAmount
+    dailySummary[day].tax += i.tax
+    dailySummary[day].discount += i.discount
+    dailySummary[day].invoices++
+  })
+  expenses.forEach((e) => {
+    const day = format(e.date, 'yyyy-MM-dd')
+    if (!dailySummary[day]) dailySummary[day] = { revenue: 0, expenses: 0, tax: 0, discount: 0, invoices: 0, net: 0 }
+    dailySummary[day].expenses += e.amount
+  })
+  Object.values(dailySummary).forEach((d) => { d.net = d.revenue - d.expenses })
+
+  const expenseBreakdown: Record<string, number> = {}
+  expenses.forEach((e) => {
+    expenseBreakdown[e.category] = (expenseBreakdown[e.category] || 0) + e.amount
+  })
+
+  const openingBalance = 0 // Placeholder - would need a cash register model
+  const closingBalance = openingBalance + netCashPosition
+
+  return {
+    summary: {
+      totalRevenue,
+      totalExpenses,
+      totalTax,
+      totalDiscount,
+      netCashPosition,
+      openingBalance,
+      closingBalance,
+      totalTransactions: invoices.length,
+    },
+    charts: {
+      dailySummary: Object.entries(dailySummary)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({ date, ...data })),
+      paymentMethodBreakdown: Object.entries(paymentMethodBreakdown).map(([method, amount]) => ({
+        method,
+        amount,
+      })),
+      expenseBreakdown: Object.entries(expenseBreakdown).map(([category, amount]) => ({
+        category,
+        amount,
+      })),
+    },
+    details: {
+      dailyTransactions: Object.entries(dailySummary)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({ date, ...data })),
+      expenseDetails: expenses
+        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .slice(0, 20)
+        .map((e) => ({
+          category: e.category,
+          description: e.description || '—',
+          amount: e.amount,
+          date: format(e.date, 'yyyy-MM-dd'),
+        })),
+    },
+  }
+}
+
+// 12. No-Show & Cancellation Report
+async function getNoShowReport(dateFrom: Date, dateTo: Date) {
+  const appointments = await db.appointment.findMany({
+    where: { date: { gte: dateFrom, lte: dateTo } },
+    include: {
+      customer: { select: { firstName: true, lastName: true, phone: true } },
+      staff: { select: { firstName: true, lastName: true } },
+      services: { include: { service: { select: { name: true } } } },
+    },
+  })
+
+  const total = appointments.length
+  const noShows = appointments.filter((a) => a.status === 'no_show')
+  const cancelled = appointments.filter((a) => a.status === 'cancelled')
+  const completed = appointments.filter((a) => a.status === 'completed')
+
+  const noShowRate = total > 0 ? (noShows.length / total) * 100 : 0
+  const cancellationRate = total > 0 ? (cancelled.length / total) * 100 : 0
+
+  const dailyNoShows: Record<string, { total: number; noShows: number; cancelled: number }> = {}
+  appointments.forEach((a) => {
+    const day = format(a.date, 'yyyy-MM-dd')
+    if (!dailyNoShows[day]) dailyNoShows[day] = { total: 0, noShows: 0, cancelled: 0 }
+    dailyNoShows[day].total++
+    if (a.status === 'no_show') dailyNoShows[day].noShows++
+    if (a.status === 'cancelled') dailyNoShows[day].cancelled++
+  })
+
+  const repeatOffenders: Record<string, { name: string; phone: string; noShows: number; cancellations: number }> = {}
+  noShows.forEach((a) => {
+    if (!repeatOffenders[a.customerId]) {
+      repeatOffenders[a.customerId] = { name: `${a.customer.firstName} ${a.customer.lastName}`, phone: a.customer.phone, noShows: 0, cancellations: 0 }
+    }
+    repeatOffenders[a.customerId].noShows++
+  })
+  cancelled.forEach((a) => {
+    if (!repeatOffenders[a.customerId]) {
+      repeatOffenders[a.customerId] = { name: `${a.customer.firstName} ${a.customer.lastName}`, phone: a.customer.phone, noShows: 0, cancellations: 0 }
+    }
+    repeatOffenders[a.customerId].cancellations++
+  })
+
+  const hourPatterns: Record<string, { total: number; noShows: number }> = {}
+  appointments.forEach((a) => {
+    const hour = parseInt(a.startTime.split(':')[0], 10)
+    const key = `${hour}:00`
+    if (!hourPatterns[key]) hourPatterns[key] = { total: 0, noShows: 0 }
+    hourPatterns[key].total++
+    if (a.status === 'no_show') hourPatterns[key].noShows++
+  })
+
+  const staffNoShows: Record<string, { name: string; noShows: number; cancelled: number }> = {}
+  appointments.forEach((a) => {
+    if (!staffNoShows[a.staffId]) {
+      staffNoShows[a.staffId] = { name: `${a.staff.firstName} ${a.staff.lastName}`, noShows: 0, cancelled: 0 }
+    }
+    if (a.status === 'no_show') staffNoShows[a.staffId].noShows++
+    if (a.status === 'cancelled') staffNoShows[a.staffId].cancelled++
+  })
+
+  const revenueLost = noShows.reduce((s, a) => s + a.totalAmount, 0) + cancelled.reduce((s, a) => s + a.totalAmount, 0)
+
+  return {
+    summary: {
+      totalAppointments: total,
+      noShows: noShows.length,
+      cancellations: cancelled.length,
+      completed: completed.length,
+      noShowRate: Math.round(noShowRate * 10) / 10,
+      cancellationRate: Math.round(cancellationRate * 10) / 10,
+      revenueLost,
+    },
+    charts: {
+      dailyTrend: Object.entries(dailyNoShows)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({ date, ...data })),
+      hourPatterns: Object.entries(hourPatterns)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([hour, data]) => ({ hour, ...data })),
+    },
+    details: {
+      repeatOffenders: Object.values(repeatOffenders)
+        .filter((r) => r.noShows + r.cancellations >= 2)
+        .sort((a, b) => (b.noShows + b.cancellations) - (a.noShows + a.cancellations))
+        .slice(0, 15),
+      staffImpact: Object.values(staffNoShows)
+        .sort((a, b) => (b.noShows + b.cancelled) - (a.noShows + a.cancelled)),
+    },
+  }
+}
+
+// 13. Service Popularity Report
+async function getServicePopularityReport(dateFrom: Date, dateTo: Date) {
+  const appointmentServices = await db.appointmentService.findMany({
+    where: {
+      appointment: { date: { gte: dateFrom, lte: dateTo }, status: 'completed' },
+    },
+    include: {
+      service: { include: { category: { select: { name: true } } } },
+      appointment: { select: { date: true } },
+    },
+  })
+
+  const serviceStats: Record<string, { name: string; category: string; bookings: number; revenue: number }> = {}
+  appointmentServices.forEach((as) => {
+    if (!serviceStats[as.serviceId]) {
+      serviceStats[as.serviceId] = {
+        name: as.service.name,
+        category: as.service.category?.name || 'Uncategorized',
+        bookings: 0,
+        revenue: 0,
+      }
+    }
+    serviceStats[as.serviceId].bookings++
+    serviceStats[as.serviceId].revenue += as.price
+  })
+
+  const categoryStats: Record<string, { bookings: number; revenue: number }> = {}
+  Object.values(serviceStats).forEach((s) => {
+    if (!categoryStats[s.category]) categoryStats[s.category] = { bookings: 0, revenue: 0 }
+    categoryStats[s.category].bookings += s.bookings
+    categoryStats[s.category].revenue += s.revenue
+  })
+
+  const monthlyTrend: Record<string, { month: string; bookings: number; revenue: number }> = {}
+  appointmentServices.forEach((as) => {
+    const month = format(as.appointment.date, 'yyyy-MM')
+    if (!monthlyTrend[month]) monthlyTrend[month] = { month, bookings: 0, revenue: 0 }
+    monthlyTrend[month].bookings++
+    monthlyTrend[month].revenue += as.price
+  })
+
+  const totalBookings = appointmentServices.length
+  const totalRevenue = appointmentServices.reduce((s, as) => s + as.price, 0)
+
+  return {
+    summary: {
+      totalServices: Object.keys(serviceStats).length,
+      totalBookings,
+      totalRevenue,
+      avgBookingValue: totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0,
+    },
+    charts: {
+      topByBookings: Object.values(serviceStats)
+        .sort((a, b) => b.bookings - a.bookings)
+        .slice(0, 10)
+        .map((s) => ({ name: s.name, bookings: s.bookings })),
+      topByRevenue: Object.values(serviceStats)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10)
+        .map((s) => ({ name: s.name, revenue: s.revenue })),
+      categoryBreakdown: Object.entries(categoryStats).map(([category, data]) => ({
+        category,
+        ...data,
+      })),
+      monthlyTrend: Object.values(monthlyTrend).sort((a, b) => a.month.localeCompare(b.month)),
+    },
+    details: {
+      serviceRankings: Object.values(serviceStats)
+        .sort((a, b) => b.bookings - a.bookings)
+        .slice(0, 20),
+    },
+  }
+}
+
+// 14. Discount Analysis Report
+async function getDiscountReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      discount: { gt: 0 },
+    },
+    include: { items: true },
+  })
+
+  const allInvoices = await db.invoice.findMany({
+    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+  })
+
+  const totalDiscount = invoices.reduce((s, i) => s + i.discount, 0)
+  const totalRevenue = allInvoices.reduce((s, i) => s + i.totalAmount, 0)
+  const grossRevenue = allInvoices.reduce((s, i) => s + i.subtotal, 0)
+  const discountRate = grossRevenue > 0 ? (totalDiscount / grossRevenue) * 100 : 0
+
+  const discountByType: Record<string, { count: number; totalDiscount: number; totalRevenue: number }> = {}
+  invoices.forEach((i) => {
+    const type = i.type || 'unknown'
+    if (!discountByType[type]) discountByType[type] = { count: 0, totalDiscount: 0, totalRevenue: 0 }
+    discountByType[type].count++
+    discountByType[type].totalDiscount += i.discount
+    discountByType[type].totalRevenue += i.totalAmount
+  })
+
+  const discountByStaff: Record<string, { name: string; count: number; totalDiscount: number }> = {}
+  invoices.forEach((i) => {
+    i.items.forEach((item) => {
+      if (item.discount > 0 && item.staffId) {
+        if (!discountByStaff[item.staffId]) discountByStaff[item.staffId] = { name: `Staff-${item.staffId.slice(0, 6)}`, count: 0, totalDiscount: 0 }
+        discountByStaff[item.staffId].count++
+        discountByStaff[item.staffId].totalDiscount += item.discount
+      }
+    })
+  })
+
+  const dailyDiscount: Record<string, { discount: number; revenue: number }> = {}
+  allInvoices.forEach((i) => {
+    const day = format(i.createdAt, 'yyyy-MM-dd')
+    if (!dailyDiscount[day]) dailyDiscount[day] = { discount: 0, revenue: 0 }
+    dailyDiscount[day].revenue += i.totalAmount
+    dailyDiscount[day].discount += i.discount
+  })
+
+  return {
+    summary: {
+      totalDiscount,
+      totalRevenue,
+      grossRevenue,
+      discountRate: Math.round(discountRate * 10) / 10,
+      invoicesWithDiscount: invoices.length,
+      totalInvoices: allInvoices.length,
+      avgDiscountPerInvoice: invoices.length > 0 ? Math.round(totalDiscount / invoices.length) : 0,
+      revenueImpact: totalDiscount,
+    },
+    charts: {
+      discountByType: Object.entries(discountByType).map(([type, data]) => ({ type, ...data })),
+      dailyDiscount: Object.entries(dailyDiscount)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, data]) => ({ date, ...data })),
+    },
+    details: {
+      discountByStaff: Object.values(discountByStaff)
+        .sort((a, b) => b.totalDiscount - a.totalDiscount)
+        .slice(0, 15),
+      recentDiscounts: invoices
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .slice(0, 20)
+        .map((i) => ({
+          invoiceNumber: i.invoiceNumber,
+          type: i.type,
+          subtotal: i.subtotal,
+          discount: i.discount,
+          totalAmount: i.totalAmount,
+          date: format(i.createdAt, 'yyyy-MM-dd HH:mm'),
+        })),
+    },
+  }
+}
+
+// 15. Hourly Sales Report
+async function getHourlySalesReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { in: ['paid', 'partial'] },
+    },
+    include: { items: true },
+  })
+
+  const hourlyRevenue: Record<number, { hour: number; revenue: number; transactions: number; avgTransaction: number }> = {}
+  for (let h = 0; h < 24; h++) {
+    hourlyRevenue[h] = { hour: h, revenue: 0, transactions: 0, avgTransaction: 0 }
+  }
+
+  invoices.forEach((i) => {
+    const hour = i.createdAt.getHours()
+    hourlyRevenue[hour].revenue += i.totalAmount
+    hourlyRevenue[hour].transactions++
+  })
+
+  Object.values(hourlyRevenue).forEach((h) => {
+    h.avgTransaction = h.transactions > 0 ? Math.round(h.revenue / h.transactions) : 0
+  })
+
+  const hourlyServiceRevenue: Record<number, Record<string, number>> = {}
+  invoices.forEach((i) => {
+    const hour = i.createdAt.getHours()
+    if (!hourlyServiceRevenue[hour]) hourlyServiceRevenue[hour] = {}
+    i.items.forEach((item) => {
+      if (item.itemType === 'service') {
+        hourlyServiceRevenue[hour][item.name] = (hourlyServiceRevenue[hour][item.name] || 0) + item.total
+      }
+    })
+  })
+
+  const peakHour = Object.values(hourlyRevenue).reduce((max, h) => h.revenue > max.revenue ? h : max, hourlyRevenue[0])
+  const totalRevenue = invoices.reduce((s, i) => s + i.totalAmount, 0)
+  const peakHourRevenueShare = totalRevenue > 0 ? (peakHour.revenue / totalRevenue) * 100 : 0
+
+  const paymentByHour: Record<number, Record<string, number>> = {}
+  invoices.forEach((i) => {
+    const hour = i.createdAt.getHours()
+    if (!paymentByHour[hour]) paymentByHour[hour] = {}
+    paymentByHour[hour][i.paymentMethod] = (paymentByHour[hour][i.paymentMethod] || 0) + i.totalAmount
+  })
+
+  return {
+    summary: {
+      totalRevenue,
+      totalTransactions: invoices.length,
+      peakHour: `${peakHour.hour}:00`,
+      peakHourRevenue: peakHour.revenue,
+      peakHourTransactions: peakHour.transactions,
+      peakHourRevenueShare: Math.round(peakHourRevenueShare * 10) / 10,
+      avgTransactionValue: invoices.length > 0 ? Math.round(totalRevenue / invoices.length) : 0,
+    },
+    charts: {
+      hourlyRevenue: Object.values(hourlyRevenue)
+        .filter((h) => h.revenue > 0 || h.transactions > 0)
+        .map((h) => ({ hour: `${h.hour}:00`, revenue: h.revenue, transactions: h.transactions })),
+      hourlyAvgTransaction: Object.values(hourlyRevenue)
+        .filter((h) => h.avgTransaction > 0)
+        .map((h) => ({ hour: `${h.hour}:00`, avgTransaction: h.avgTransaction })),
+    },
+    details: {
+      hourlyBreakdown: Object.values(hourlyRevenue)
+        .filter((h) => h.revenue > 0 || h.transactions > 0)
+        .map((h) => ({
+          hour: `${h.hour}:00`,
+          revenue: h.revenue,
+          transactions: h.transactions,
+          avgTransaction: h.avgTransaction,
+        })),
+      topServicesByPeakHour: Object.entries(hourlyServiceRevenue[peakHour.hour] || {})
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10)
+        .map(([name, revenue]) => ({ name, revenue })),
+    },
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -884,6 +1304,21 @@ export async function GET(request: NextRequest) {
         break
       case 'tax':
         data = await getTaxReport(dateFrom, dateTo)
+        break
+      case 'daily_closeout':
+        data = await getDailyCloseoutReport(dateFrom, dateTo)
+        break
+      case 'noshow':
+        data = await getNoShowReport(dateFrom, dateTo)
+        break
+      case 'service_popularity':
+        data = await getServicePopularityReport(dateFrom, dateTo)
+        break
+      case 'discount':
+        data = await getDiscountReport(dateFrom, dateTo)
+        break
+      case 'hourly_sales':
+        data = await getHourlySalesReport(dateFrom, dateTo)
         break
       default:
         return NextResponse.json(
