@@ -630,6 +630,49 @@ export function PosModule() {
         <div className="flex gap-3 flex-1 min-h-0">
           {/* ─── LEFT: Products / Services Area ─────────────────────────────── */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl">
+            {/* Customer Selector — TOP of service area (Flow: Customer → Service → Staff → Cart) */}
+            <div className="shrink-0 px-4 py-2 border-b border-border/50 bg-gradient-to-r from-rose-500/[0.03] to-pink-500/[0.02]">
+              <button
+                className="flex items-center gap-2.5 w-full group"
+                onClick={() => setShowCustomerPicker(true)}
+              >
+                <div className={cn('flex size-8 items-center justify-center rounded-xl shrink-0 transition-colors', selectedCustomer ? 'bg-rose-500 text-white' : 'bg-foreground/5 text-muted-foreground group-hover:bg-rose-500/10 group-hover:text-rose-500')}>
+                  <User className="size-4" />
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  {selectedCustomer ? (
+                    <>
+                      <p className="text-xs font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
+                      <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1.5">
+                        <span>{selectedCustomer.phone}</span>
+                        {selectedCustomer.loyaltyTier && (
+                          <>
+                            <span className="text-border">·</span>
+                            <span className="flex items-center gap-0.5"><Star className="size-2 text-amber-500" />{selectedCustomer.loyaltyTier}</span>
+                          </>
+                        )}
+                        {selectedCustomer.loyaltyPoints > 0 && (
+                          <>
+                            <span className="text-border">·</span>
+                            <span>{selectedCustomer.loyaltyPoints} pts</span>
+                          </>
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">Select Customer</p>
+                      <p className="text-[10px] text-muted-foreground/60">Tap to choose or use Walk-in</p>
+                    </>
+                  )}
+                </div>
+                <div className="shrink-0 flex items-center gap-1 text-[10px] text-muted-foreground group-hover:text-rose-500 transition-colors">
+                  <span>{selectedCustomer ? 'Change' : 'Select'}</span>
+                  <ChevronRight className="size-3" />
+                </div>
+              </button>
+            </div>
+
             {/* Search Bar — sticky top */}
             <div className="shrink-0 px-4 py-2.5 border-b border-border/50">
               <div className="flex items-center gap-3">
@@ -851,28 +894,6 @@ export function PosModule() {
                 )}
               </div>
 
-              {/* ── Customer Selector ── */}
-              <div className="shrink-0 px-4 py-2 border-b border-border/50 bg-foreground/[0.01]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className={cn('flex size-5 items-center justify-center rounded-md shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
-                      <User className="size-2.5" />
-                    </div>
-                    {selectedCustomer ? (
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
-                        <p className="text-[9px] text-muted-foreground truncate">{selectedCustomer.phone}</p>
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground">Walk-in Customer</p>
-                    )}
-                  </div>
-                  <Button size="sm" variant="outline" className="h-5 text-[9px] rounded-md gap-1 shrink-0 px-2" onClick={() => setShowCustomerPicker(true)}>
-                    {selectedCustomer ? 'Change' : 'Select'}
-                  </Button>
-                </div>
-              </div>
-
               {/* ── Cart Items Summary (SCROLLABLE) ── */}
               <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                 {cart.length === 0 ? (
@@ -1020,28 +1041,6 @@ export function PosModule() {
 
           {/* ─── MOBILE: Cart (non-sticky, below products) ── */}
           <div className="lg:hidden space-y-3">
-            {/* Customer Selector */}
-            <GlassCard className="p-3" hover3d={false} animateOnMount={false}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className={cn('flex size-7 items-center justify-center rounded-lg shrink-0', selectedCustomer ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/5 text-muted-foreground')}>
-                    <User className="size-3.5" />
-                  </div>
-                  {selectedCustomer ? (
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold truncate">{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{selectedCustomer.phone}</p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Walk-in Customer</p>
-                  )}
-                </div>
-                <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-lg gap-1 shrink-0" onClick={() => setShowCustomerPicker(true)}>
-                  {selectedCustomer ? 'Change' : 'Select'}
-                </Button>
-              </div>
-            </GlassCard>
-
             {/* Cart Summary */}
             <GlassCard className="p-4" hover3d={false} animateOnMount={false}>
               <div className="space-y-1.5 text-xs mb-3">
@@ -1330,85 +1329,186 @@ export function PosModule() {
 
       {/* ─── Customer Picker ───────────────────────────────────────────────── */}
       <Dialog open={showCustomerPicker} onOpenChange={setShowCustomerPicker}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><User className="size-5 text-rose-500" /> Select Customer</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
+        <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden">
+          {/* Header with gradient */}
+          <div className="bg-gradient-to-r from-rose-500 to-pink-600 px-5 py-4 text-white">
+            <DialogTitle className="flex items-center gap-2.5 text-white">
+              <div className="flex size-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+                <User className="size-4.5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">Select Customer</p>
+                <p className="text-[10px] text-white/70">Step 1 of 3 — Customer → Service → Staff</p>
+              </div>
+            </DialogTitle>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-              <Input placeholder="Search by name or phone..." className="pl-9 h-9 text-sm rounded-xl" value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or phone..."
+                className="pl-10 h-10 text-sm rounded-xl border-rose-500/20 focus:border-rose-500/50"
+                value={customerSearch}
+                onChange={e => setCustomerSearch(e.target.value)}
+                autoFocus
+              />
+              {customerSearch && (
+                <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setCustomerSearch('')}>
+                  <X className="size-3" />
+                </Button>
+              )}
             </div>
-            <ScrollArea className="max-h-64">
+
+            {/* Walk-in Quick Option */}
+            <button
+              className={cn(
+                'flex items-center gap-3 w-full p-3 rounded-xl transition-all text-left border-2',
+                !selectedCustomer ? 'border-rose-500/50 bg-rose-500/5 shadow-sm' : 'border-transparent hover:border-border/50 hover:bg-foreground/[0.02]'
+              )}
+              onClick={() => { setSelectedCustomer(null); setShowCustomerPicker(false); toast.success('Walk-in customer selected', { duration: 800 }) }}
+            >
+              <div className={cn('flex size-10 items-center justify-center rounded-xl shrink-0', !selectedCustomer ? 'bg-rose-500 text-white' : 'bg-foreground/5 text-muted-foreground')}>
+                <User className="size-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Walk-in Customer</p>
+                <p className="text-[11px] text-muted-foreground">No account · Quick checkout</p>
+              </div>
+              {!selectedCustomer && (
+                <Badge className="bg-rose-500 text-white text-[9px] border-0">Selected</Badge>
+              )}
+            </button>
+
+            {/* Customer List */}
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1 flex items-center justify-between">
+              <span>Registered Customers ({customers.length})</span>
+            </div>
+            <ScrollArea className="max-h-[320px]">
               <div className="space-y-1">
-                <button
-                  className={cn('flex items-center gap-3 w-full p-2.5 rounded-xl transition-colors text-left', !selectedCustomer ? 'bg-rose-500/5 border border-rose-500/30' : 'hover:bg-foreground/[0.02]')}
-                  onClick={() => { setSelectedCustomer(null); setShowCustomerPicker(false) }}
-                >
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-foreground/5 text-muted-foreground"><User className="size-4" /></div>
-                  <div><p className="text-xs font-semibold">Walk-in Customer</p><p className="text-[10px] text-muted-foreground">No loyalty points</p></div>
-                </button>
                 {customers
                   .filter(c => !customerSearch || `${c.firstName} ${c.lastName} ${c.phone}`.toLowerCase().includes(customerSearch.toLowerCase()))
                   .map(customer => (
                     <button
                       key={customer.id}
-                      className={cn('flex items-center gap-3 w-full p-2.5 rounded-xl transition-colors text-left', selectedCustomer?.id === customer.id ? 'bg-rose-500/5 border border-rose-500/30' : 'hover:bg-foreground/[0.02]')}
-                      onClick={() => { setSelectedCustomer(customer); setShowCustomerPicker(false) }}
+                      className={cn(
+                        'flex items-center gap-3 w-full p-3 rounded-xl transition-all text-left border-2',
+                        selectedCustomer?.id === customer.id
+                          ? 'border-rose-500/50 bg-rose-500/5 shadow-sm'
+                          : 'border-transparent hover:border-border/50 hover:bg-foreground/[0.02]'
+                      )}
+                      onClick={() => { setSelectedCustomer(customer); setShowCustomerPicker(false); toast.success(`${customer.firstName} ${customer.lastName} selected`, { duration: 800 }) }}
                     >
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold">
+                      <div className={cn('flex size-10 items-center justify-center rounded-xl shrink-0 text-sm font-bold', selectedCustomer?.id === customer.id ? 'bg-rose-500 text-white' : 'bg-gradient-to-br from-rose-400 to-pink-500 text-white')}>
                         {customer.firstName.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold truncate">{customer.firstName} {customer.lastName}</p>
-                        <p className="text-[10px] text-muted-foreground">{customer.phone} · <Star className="size-2 inline text-amber-500" /> {customer.loyaltyTier} · {customer.loyaltyPoints} pts</p>
+                        <p className="text-sm font-semibold truncate">{customer.firstName} {customer.lastName}</p>
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                          <span>{customer.phone}</span>
+                          <span className="text-border">·</span>
+                          <span className="flex items-center gap-0.5"><Star className="size-2.5 text-amber-500" />{customer.loyaltyTier}</span>
+                          <span className="text-border">·</span>
+                          <span>{customer.loyaltyPoints} pts</span>
+                        </p>
                       </div>
+                      {selectedCustomer?.id === customer.id && (
+                        <Badge className="bg-rose-500 text-white text-[9px] border-0">Selected</Badge>
+                      )}
                     </button>
                   ))}
+                {customers.filter(c => !customerSearch || `${c.firstName} ${c.lastName} ${c.phone}`.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 && (
+                  <div className="py-8 text-center">
+                    <User className="size-8 text-muted-foreground/20 mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">No customers found</p>
+                    <p className="text-[10px] text-muted-foreground/60">Try a different search term</p>
+                  </div>
+                )}
               </div>
             </ScrollArea>
+          </div>
+
+          {/* Footer hint */}
+          <div className="px-4 pb-4 pt-0 flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground/60">
+              <kbd className="px-1 py-0.5 rounded bg-foreground/5 text-[9px] font-mono">F12</kbd> Quick open · <kbd className="px-1 py-0.5 rounded bg-foreground/5 text-[9px] font-mono">Esc</kbd> Close
+            </p>
+            {selectedCustomer && (
+              <Button size="sm" variant="outline" className="h-7 text-[10px] rounded-md gap-1" onClick={() => { setSelectedCustomer(null) }}>
+                <X className="size-2.5" /> Deselect
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
 
       {/* ─── Staff Picker ──────────────────────────────────────────────────── */}
       <Dialog open={showStaffPicker} onOpenChange={(open) => { setShowStaffPicker(open); if (!open) setPendingService(null) }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="size-5 text-rose-500" /> Select Staff
-            </DialogTitle>
-          </DialogHeader>
-          {pendingService && (
-            <div className="space-y-3 py-2">
-              <div className="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20">
-                <p className="text-xs font-semibold">{pendingService.name}</p>
-                <p className="text-[10px] text-muted-foreground">{formatPKR(pendingService.price)} · {pendingService.duration}m</p>
+        <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden">
+          {/* Header with gradient */}
+          <div className="bg-gradient-to-r from-rose-500 to-pink-600 px-5 py-4 text-white">
+            <DialogTitle className="flex items-center gap-2.5 text-white">
+              <div className="flex size-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+                <Users className="size-4.5" />
               </div>
-              <ScrollArea className="max-h-64">
+              <div>
+                <p className="text-sm font-bold">Select Staff</p>
+                <p className="text-[10px] text-white/70">Step 3 of 3 — Customer → Service → Staff</p>
+              </div>
+            </DialogTitle>
+          </div>
+
+          {pendingService && (
+            <div className="p-4 space-y-3">
+              {/* Selected Service Card */}
+              <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20 flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 shrink-0">
+                  <Scissors className="size-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">{pendingService.name}</p>
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                    <span>{formatPKR(pendingService.price)}</span>
+                    <span className="text-border">·</span>
+                    <span className="flex items-center gap-0.5"><Timer className="size-2.5" />{pendingService.duration}m</span>
+                    {pendingService.categoryName && (
+                      <>
+                        <span className="text-border">·</span>
+                        <span className="uppercase text-[10px] tracking-wide">{pendingService.categoryName}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Staff Selection */}
+              <ScrollArea className="max-h-[320px]">
                 <div className="space-y-1">
                   <button
-                    className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors text-left"
+                    className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-foreground/[0.02] transition-all text-left border-2 border-transparent hover:border-border/50"
                     onClick={() => handleStaffSelect(null, null)}
                   >
-                    <div className="flex size-8 items-center justify-center rounded-lg bg-foreground/5 text-muted-foreground">
-                      <Plus className="size-4" />
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-foreground/5 text-muted-foreground shrink-0">
+                      <Plus className="size-5" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold">No Staff (Skip)</p>
-                      <p className="text-[10px] text-muted-foreground">Add without assigning staff</p>
+                      <p className="text-sm font-semibold">No Staff (Skip)</p>
+                      <p className="text-[11px] text-muted-foreground">Add without assigning staff</p>
                     </div>
                   </button>
                   {staffList.map(staff => (
                     <button
                       key={staff.id}
-                      className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-foreground/[0.02] transition-colors text-left"
+                      className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-foreground/[0.02] transition-all text-left border-2 border-transparent hover:border-border/50"
                       onClick={() => handleStaffSelect(staff.id, `${staff.firstName} ${staff.lastName}`)}
                     >
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-400 to-pink-500 text-white text-xs font-bold">
+                      <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-400 to-pink-500 text-white text-sm font-bold shrink-0">
                         {staff.firstName.charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold truncate">{staff.firstName} {staff.lastName}</p>
-                        <p className="text-[10px] text-muted-foreground">{staff.specialization || staff.role}</p>
+                        <p className="text-sm font-semibold truncate">{staff.firstName} {staff.lastName}</p>
+                        <p className="text-[11px] text-muted-foreground">{staff.specialization || staff.role}</p>
                       </div>
                     </button>
                   ))}
@@ -1416,6 +1516,13 @@ export function PosModule() {
               </ScrollArea>
             </div>
           )}
+
+          {/* Footer hint */}
+          <div className="px-4 pb-4 pt-0">
+            <p className="text-[10px] text-muted-foreground/60">
+              <kbd className="px-1 py-0.5 rounded bg-foreground/5 text-[9px] font-mono">Esc</kbd> Cancel · Select staff to add to cart
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

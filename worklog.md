@@ -29,3 +29,24 @@ Stage Summary:
 - All API endpoints tested and working
 - No lint errors from new code
 - Build successful
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix customer selection popup - move customer selection above service search bar following flow: Customer → Service → Staff → Add to Cart
+
+Work Log:
+- Read the full POS component (1445 lines) to understand current layout structure
+- Analyzed uploaded screenshot showing the customer picker dialog
+- Moved customer selector from cart sidebar to the TOP of the left panel (above search bar)
+- Added new customer selector row with gradient background, user icon, customer details, and Change/Select button with chevron
+- Removed customer selector from the desktop cart sidebar
+- Removed customer selector from the mobile cart section
+- Redesigned customer picker dialog with gradient header, step indicator ("Step 1 of 3 — Customer → Service → Staff"), larger avatars, search with clear button, Walk-in option with "Selected" badge, toast notifications on selection, footer with keyboard hints, and deselect button
+- Redesigned staff picker dialog to match same design language with gradient header ("Step 3 of 3"), larger service info card with icon, larger staff avatars, and footer hints
+- Verified with Agent Browser - all checks pass
+
+Stage Summary:
+- Customer selector now appears ABOVE the search bar following the correct flow: Customer → Service → Staff → Cart
+- Both customer and staff picker dialogs redesigned with consistent gradient headers and step indicators
+- Cart sidebar simplified (no customer selector) - shows only summary
+- All functionality verified working via Agent Browser
