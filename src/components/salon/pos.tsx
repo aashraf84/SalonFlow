@@ -109,6 +109,7 @@ export function PosModule() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const serviceListRef = useRef<HTMLDivElement>(null)
+  const completeSaleRef = useRef<() => void>(() => {})
 
   // Staff Picker State
   const [staffList, setStaffList] = useState<{id: string; firstName: string; lastName: string; role: string; specialization?: string; avatar?: string}[]>([])
@@ -229,6 +230,120 @@ export function PosModule() {
       }
     }
   }, [highlightedIndex])
+
+  // ─── Global Keyboard Shortcuts ──────────────────────────────────────────
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if typing in an input (except F-keys)
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      const isFKey = e.key.startsWith('F') && e.key.length > 1
+
+      // F1 — Focus search
+      if (e.key === 'F1') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+
+      // F2 — Cash payment
+      if (e.key === 'F2') {
+        e.preventDefault()
+        setPaymentMethod('cash')
+        toast.success('Payment: Cash', { duration: 800 })
+        return
+      }
+
+      // F3 — Card payment
+      if (e.key === 'F3') {
+        e.preventDefault()
+        setPaymentMethod('card')
+        toast.success('Payment: Card', { duration: 800 })
+        return
+      }
+
+      // F4 — Wallet payment
+      if (e.key === 'F4') {
+        e.preventDefault()
+        setPaymentMethod('wallet')
+        toast.success('Payment: Wallet', { duration: 800 })
+        return
+      }
+
+      // F5 — Split payment
+      if (e.key === 'F5') {
+        e.preventDefault()
+        setPaymentMethod('split')
+        toast.success('Payment: Split', { duration: 800 })
+        return
+      }
+
+      // F9 — Clear cart
+      if (e.key === 'F9') {
+        e.preventDefault()
+        if (cart.length > 0) {
+          clearCart()
+          toast.success('Cart cleared', { duration: 800 })
+        }
+        return
+      }
+
+      // F10 — Post Bill / Checkout
+      if (e.key === 'F10') {
+        e.preventDefault()
+        if (cart.length > 0) {
+          setShowCheckout(true)
+        } else {
+          toast.error('Cart is empty')
+        }
+        return
+      }
+
+      // F12 — Customer picker
+      if (e.key === 'F12') {
+        e.preventDefault()
+        setShowCustomerPicker(true)
+        return
+      }
+
+      // Escape — close dialogs, clear search, blur input
+      if (e.key === 'Escape') {
+        if (showStaffPicker) { setShowStaffPicker(false); setPendingService(null); return }
+        if (showCustomerPicker) { setShowCustomerPicker(false); return }
+        if (showCheckout) { setShowCheckout(false); return }
+        if (showReceipt) { setShowReceipt(false); return }
+        if (searchQuery) { setSearchQuery(''); searchInputRef.current?.blur(); return }
+        if (isInput) { target.blur(); return }
+        return
+      }
+
+      // Ctrl+Enter — Post Bill (alternative to F10)
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault()
+        if (cart.length > 0) {
+          setShowCheckout(true)
+        }
+        return
+      }
+
+      // Enter — Confirm sale when checkout dialog is open
+      if (e.key === 'Enter' && showCheckout && !submitting) {
+        e.preventDefault()
+        completeSaleRef.current()
+        return
+      }
+
+      // / key — Quick focus search (vim-style, only when not in input)
+      if (e.key === '/' && !isInput) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [cart.length, clearCart, searchQuery, showStaffPicker, showCustomerPicker, showCheckout, showReceipt, submitting])
 
   const handleStaffSelect = useCallback((staffId: string | null, staffName: string | null) => {
     if (!pendingService) return
@@ -354,6 +469,9 @@ export function PosModule() {
     finally { setSubmitting(false) }
   }
 
+  // Keep ref updated for keyboard handler
+  completeSaleRef.current = handleCompleteSale
+
   // ─── Print Receipt ──────────────────────────────────────────────────────
   const printReceipt = () => {
     if (!completedInvoice) return
@@ -455,14 +573,45 @@ export function PosModule() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ─── Mode Toggle ────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-3">
-        <Button size="sm" variant={viewMode === 'pos' ? 'default' : 'outline'} className={cn('text-xs rounded-xl gap-1.5', viewMode === 'pos' && 'bg-tahoe-accent text-white')} onClick={() => setViewMode('pos')}>
-          <ShoppingCart className="size-3.5" /> Point of Sale
-        </Button>
-        <Button size="sm" variant={viewMode === 'history' ? 'default' : 'outline'} className={cn('text-xs rounded-xl gap-1.5', viewMode === 'history' && 'bg-tahoe-accent text-white')} onClick={() => setViewMode('history')}>
-          <Receipt className="size-3.5" /> Transaction History
-        </Button>
+      {/* ─── Top Bar: Mode Toggle + Shortcut Keys ──────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant={viewMode === 'pos' ? 'default' : 'outline'} className={cn('text-xs rounded-xl gap-1.5', viewMode === 'pos' && 'bg-tahoe-accent text-white')} onClick={() => setViewMode('pos')}>
+            <ShoppingCart className="size-3.5" /> Point of Sale
+          </Button>
+          <Button size="sm" variant={viewMode === 'history' ? 'default' : 'outline'} className={cn('text-xs rounded-xl gap-1.5', viewMode === 'history' && 'bg-tahoe-accent text-white')} onClick={() => setViewMode('history')}>
+            <Receipt className="size-3.5" /> History
+          </Button>
+        </div>
+        {/* ─── Shortcut Keys Bar ───────────────────────────────────────────── */}
+        <div className="hidden md:flex items-center gap-1">
+          {[
+            { key: 'F1', label: 'Search', icon: Search, action: () => searchInputRef.current?.focus() },
+            { key: 'F2', label: 'Cash', icon: Banknote, action: () => { setPaymentMethod('cash'); toast.success('Payment: Cash', { duration: 800 }) } },
+            { key: 'F3', label: 'Card', icon: CreditCard, action: () => { setPaymentMethod('card'); toast.success('Payment: Card', { duration: 800 }) } },
+            { key: 'F4', label: 'Wallet', icon: Wallet, action: () => { setPaymentMethod('wallet'); toast.success('Payment: Wallet', { duration: 800 }) } },
+            { key: 'F5', label: 'Split', icon: Receipt, action: () => { setPaymentMethod('split'); toast.success('Payment: Split', { duration: 800 }) } },
+            { key: 'F9', label: 'Clear', icon: Trash2, action: () => { if (cart.length > 0) { clearCart(); toast.success('Cart cleared', { duration: 800 }) } } },
+            { key: 'F10', label: 'Post Bill', icon: Zap, action: () => { if (cart.length > 0) setShowCheckout(true) } },
+            { key: 'F12', label: 'Customer', icon: User, action: () => setShowCustomerPicker(true) },
+            { key: 'Esc', label: 'Close', icon: X, action: () => { setShowStaffPicker(false); setShowCustomerPicker(false); setShowCheckout(false); setSearchQuery('') } },
+          ].map(s => (
+            <TooltipProvider key={s.key}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={s.action}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04] transition-colors border border-transparent hover:border-border/50"
+                  >
+                    <kbd className="px-1 py-0.5 rounded bg-foreground/[0.06] text-[9px] font-mono font-bold tracking-tight">{s.key}</kbd>
+                    <span className="hidden lg:inline">{s.label}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent><p>{s.key} — {s.label}</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ))}
+        </div>
       </div>
 
       {viewMode === 'pos' ? (
@@ -770,7 +919,7 @@ export function PosModule() {
                 {/* Payment Method */}
                 <div className="px-4 pb-2">
                   <div className="grid grid-cols-4 gap-1">
-                    {paymentMethods.map(pm => (
+                    {paymentMethods.map((pm, idx) => (
                       <TooltipProvider key={pm.value}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -785,9 +934,10 @@ export function PosModule() {
                                 <pm.icon className="size-2.5" />
                               </div>
                               <span className="text-[8px] font-medium">{pm.label}</span>
+                              <kbd className="text-[7px] text-muted-foreground/50 font-mono">F{idx + 2}</kbd>
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent><p>Pay with {pm.label}</p></TooltipContent>
+                          <TooltipContent><p>{pm.label} Payment (F{idx + 2})</p></TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     ))}
@@ -803,7 +953,7 @@ export function PosModule() {
                   >
                     <Zap className="size-4" />
                     Post Bill — {formatPKR(grandTotal)}
-                    <span className="ml-auto text-[10px] opacity-70">Enter ↵</span>
+                    <span className="ml-auto text-[10px] opacity-70">F10</span>
                   </Button>
                 </div>
               </div>
@@ -1168,10 +1318,13 @@ export function PosModule() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={() => setShowCheckout(false)}>Cancel</Button>
+            <Button variant="outline" className="rounded-xl" onClick={() => setShowCheckout(false)}>
+              Cancel <kbd className="ml-1 px-1 py-0.5 rounded bg-foreground/5 text-[9px] font-mono">Esc</kbd>
+            </Button>
             <Button className="rounded-xl gap-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white" onClick={handleCompleteSale} disabled={submitting}>
               {submitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
               Confirm & Charge {formatPKR(grandTotal)}
+              <kbd className="ml-1 px-1 py-0.5 rounded bg-white/20 text-[9px] font-mono">Enter</kbd>
             </Button>
           </DialogFooter>
         </DialogContent>
