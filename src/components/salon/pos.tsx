@@ -83,6 +83,7 @@ export function PosModule() {
   const [invoices, setInvoices] = useState<InvoiceType[]>([])
   const [categories, setCategories] = useState<CategoryType[]>([])
   const [customers, setCustomers] = useState<CustomerType[]>([])
+  const [branches, setBranches] = useState<{id: string; name: string; branchCode: string}[]>([])
   const [loading, setLoading] = useState(true)
 
   // POS State
@@ -156,12 +157,20 @@ export function PosModule() {
     } catch {}
   }, [])
 
+  const fetchBranches = useCallback(async () => {
+    try {
+      const res = await fetch('/api/branches')
+      const json = await res.json()
+      if (json.success) setBranches(json.data)
+    } catch {}
+  }, [])
+
   const fetchTaxSettings = useCallback(async () => {
     try {
       const res = await fetch('/api/settings')
       const json = await res.json()
-      if (json.success) {
-        const g = json.data.grouped
+      if (json.success && json.data) {
+        const g = json.data.grouped || {}
         const business = g.business || {}
         setTaxSettings({
           taxMode: business.business_taxMode || 'none',
@@ -175,11 +184,11 @@ export function PosModule() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      await Promise.all([fetchInvoices(), fetchServices(), fetchCustomers(), fetchStaff(), fetchTaxSettings()])
+      await Promise.all([fetchInvoices(), fetchServices(), fetchCustomers(), fetchStaff(), fetchBranches(), fetchTaxSettings()])
       setLoading(false)
     }
     load()
-  }, [fetchInvoices, fetchServices, fetchCustomers, fetchStaff, fetchTaxSettings])
+  }, [fetchInvoices, fetchServices, fetchCustomers, fetchStaff, fetchBranches, fetchTaxSettings])
 
   // ─── Cart Logic ─────────────────────────────────────────────────────────
   const allServices = useMemo(() =>
@@ -200,6 +209,28 @@ export function PosModule() {
   const handleServiceClick = useCallback((service: ServiceType & { categoryName?: string; categoryId?: string }) => {
     setPendingService(service)
     setShowStaffPicker(true)
+  }, [])
+
+  // ─── Cart Actions (must be defined before keyboard shortcuts useEffect) ────
+  const removeFromCart = useCallback((id: string) => {
+    setCart(prev => prev.filter(item => item.id !== id))
+  }, [])
+
+  const updateQuantity = useCallback((id: string, delta: number) => {
+    setCart(prev => {
+      const item = prev.find(i => i.id === id)
+      if (!item) return prev
+      const newQty = item.quantity + delta
+      if (newQty < 1) return prev.filter(i => i.id !== id)
+      return prev.map(i => i.id === id ? { ...i, quantity: newQty } : i)
+    })
+  }, [])
+
+  const clearCart = useCallback(() => {
+    setCart([])
+    setDiscountPercent(0)
+    setCustomDiscount('')
+    setSelectedCustomer(null)
   }, [])
 
   // Keyboard navigation handler
@@ -374,27 +405,6 @@ export function PosModule() {
     setPendingService(null)
   }, [pendingService])
 
-  const removeFromCart = useCallback((id: string) => {
-    setCart(prev => prev.filter(item => item.id !== id))
-  }, [])
-
-  const updateQuantity = useCallback((id: string, delta: number) => {
-    setCart(prev => {
-      const item = prev.find(i => i.id === id)
-      if (!item) return prev
-      const newQty = item.quantity + delta
-      if (newQty < 1) return prev.filter(i => i.id !== id)
-      return prev.map(i => i.id === id ? { ...i, quantity: newQty } : i)
-    })
-  }, [])
-
-  const clearCart = useCallback(() => {
-    setCart([])
-    setDiscountPercent(0)
-    setCustomDiscount('')
-    setSelectedCustomer(null)
-  }, [])
-
   // ─── Calculations ───────────────────────────────────────────────────────
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity) - item.discount, 0), [cart])
 
@@ -419,14 +429,14 @@ export function PosModule() {
 
   // Quick stats
   const todayStr = new Date().toISOString().split('T')[0]
-  const todaySales = invoices.filter(inv => inv.createdAt.split('T')[0] === todayStr && inv.paymentStatus === 'paid').reduce((s, i) => s + i.totalAmount, 0)
-  const todayTransactions = invoices.filter(inv => inv.createdAt.split('T')[0] === todayStr && inv.paymentStatus === 'paid').length
+  const todaySales = invoices.filter(inv => inv.createdAt && inv.createdAt.split('T')[0] === todayStr && inv.paymentStatus === 'paid').reduce((s, i) => s + (i.totalAmount || 0), 0)
+  const todayTransactions = invoices.filter(inv => inv.createdAt && inv.createdAt.split('T')[0] === todayStr && inv.paymentStatus === 'paid').length
 
   // ─── Complete Sale ──────────────────────────────────────────────────────
   const handleCompleteSale = async () => {
     if (cart.length === 0) { toast.error('Cart is empty'); return }
-    const firstBranch = invoices.find(inv => inv.branch)?.branchId
-    if (!firstBranch) { toast.error('No branch found. Create a branch first.'); return }
+    const branchId = branches[0]?.id || invoices.find(inv => inv.branchId)?.branchId
+    if (!branchId) { toast.error('No branch found. Create a branch in Settings first.'); return }
 
     setSubmitting(true)
     try {
@@ -434,7 +444,7 @@ export function PosModule() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          branchId: firstBranch,
+          branchId,
           customerId: selectedCustomer?.id || null,
           type: 'service',
           subtotal,
