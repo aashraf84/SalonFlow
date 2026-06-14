@@ -30,7 +30,6 @@ export type SalonModule =
   | 'attendance'
   | 'tips'
   | 'owner'
-  | 'sales-reports'
 
 interface SalonStore {
   activeModule: SalonModule

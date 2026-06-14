@@ -79,7 +79,6 @@ const AuditLogModule = dynamic(() => import('@/components/salon/audit-log').then
 const AttendanceModule = dynamic(() => import('@/components/salon/attendance').then(mod => ({ default: mod.AttendanceModule })), { ssr: false })
 const TipsModule = dynamic(() => import('@/components/salon/tips').then(mod => ({ default: mod.TipsModule })), { ssr: false })
 const SuppliersModule = dynamic(() => import('@/components/salon/suppliers').then(mod => ({ default: mod.SuppliersModule })), { ssr: false })
-const SalesReportsModule = dynamic(() => import('@/components/salon/sales-reports').then(mod => ({ default: mod.SalesReportsModule })), { ssr: false })
 
 const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; group: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="size-[18px]" />, group: 'Main' },
@@ -108,7 +107,6 @@ const moduleConfig: { key: SalonModule; label: string; icon: React.ReactNode; gr
   { key: 'branches', label: 'Branches', icon: <Building2 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'reports', label: 'Reports', icon: <BarChart3 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'ai-assistant', label: 'AI Assistant', icon: <Bot className="size-[18px]" />, group: 'Intelligence' },
-  { key: 'sales-reports', label: 'Sales Reports', icon: <BarChart3 className="size-[18px]" />, group: 'Intelligence' },
   { key: 'audit-log', label: 'Audit Log', icon: <FileSearch className="size-[18px]" />, group: 'Intelligence' },
   { key: 'settings', label: 'Settings', icon: <Settings className="size-[18px]" />, group: 'Intelligence' },
   { key: 'owner', label: 'Owner Panel', icon: <Shield className="size-[18px]" />, group: 'Enterprise' },
@@ -248,7 +246,6 @@ export function MainAppShell() {
       case 'tips': return <TipsModule />
       case 'suppliers': return <SuppliersModule />
       case 'owner': return <OwnerModule />
-      case 'sales-reports': return <SalesReportsModule />
       default: return <DashboardModule />
     }
   }

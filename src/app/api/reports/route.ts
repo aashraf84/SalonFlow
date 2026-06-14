@@ -1263,6 +1263,677 @@ async function getHourlySalesReport(dateFrom: Date, dateTo: Date) {
   }
 }
 
+// ─── Helper: round to 2 decimals ──────────────────────────────────────────────
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+// ─── Helper: build product cost map ───────────────────────────────────────────
+async function buildProductCostMap(productItemIds: string[]): Promise<Record<string, number>> {
+  if (productItemIds.length === 0) return {}
+  const uniqueIds = [...new Set(productItemIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return {}
+  const products = await db.product.findMany({
+    where: { id: { in: uniqueIds } },
+    select: { id: true, costPrice: true },
+  })
+  const map: Record<string, number> = {}
+  for (const p of products) {
+    map[p.id] = p.costPrice
+  }
+  return map
+}
+
+// ─── Helper: build service category map ────────────────────────────────────────
+async function buildServiceCategoryMap(): Promise<Record<string, string>> {
+  const categories = await db.serviceCategory.findMany({
+    include: { services: { select: { name: true } } },
+  })
+  const map: Record<string, string> = {}
+  for (const cat of categories) {
+    for (const svc of cat.services) {
+      map[svc.name] = cat.name
+    }
+  }
+  return map
+}
+
+// ─── Helper: build product category map ────────────────────────────────────────
+async function buildProductCategoryMap(): Promise<Record<string, string>> {
+  const categories = await db.productCategory.findMany({
+    include: { products: { select: { name: true } } },
+  })
+  const map: Record<string, string> = {}
+  for (const cat of categories) {
+    for (const prod of cat.products) {
+      map[prod.name] = cat.name
+    }
+  }
+  return map
+}
+
+// ─── 16. Item-wise Sales Report ──────────────────────────────────────────────
+async function getSalesItemReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { not: 'refunded' },
+    },
+    include: { items: true },
+  })
+
+  const allItems = invoices.flatMap((inv) => inv.items)
+
+  // Aggregate by item name + type
+  const itemAgg: Record<string, { name: string; type: string; qty: number; revenue: number; discount: number }> = {}
+  for (const item of allItems) {
+    const key = `${item.name}|||${item.itemType}`
+    if (!itemAgg[key]) {
+      itemAgg[key] = { name: item.name, type: item.itemType, qty: 0, revenue: 0, discount: 0 }
+    }
+    itemAgg[key].qty += item.quantity
+    itemAgg[key].revenue += item.total
+    itemAgg[key].discount += item.discount || 0
+  }
+
+  const serviceCategoryMap = await buildServiceCategoryMap()
+  const productCategoryMap = await buildProductCategoryMap()
+
+  const itemReport = Object.values(itemAgg)
+    .map((item) => {
+      const category = item.type === 'service'
+        ? (serviceCategoryMap[item.name] || 'Uncategorized')
+        : (productCategoryMap[item.name] || 'Uncategorized')
+      const avgPrice = item.qty > 0 ? round2(item.revenue / item.qty) : 0
+      const totalRevenue = round2(allItems.reduce((s, i) => s + i.total, 0))
+      const pctOfTotal = totalRevenue > 0 ? round2((item.revenue / totalRevenue) * 100) : 0
+      return {
+        name: item.name,
+        type: item.type,
+        category,
+        qtySold: item.qty,
+        revenue: round2(item.revenue),
+        avgPrice,
+        discount: round2(item.discount),
+        pctOfTotal,
+      }
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+
+  const totalRevenue = round2(allItems.reduce((s, i) => s + i.total, 0))
+  const totalItems = allItems.reduce((s, i) => s + i.quantity, 0)
+  const serviceItems = allItems.filter((i) => i.itemType === 'service')
+  const productItems = allItems.filter((i) => i.itemType === 'product')
+  const serviceRevenue = round2(serviceItems.reduce((s, i) => s + i.total, 0))
+  const productRevenue = round2(productItems.reduce((s, i) => s + i.total, 0))
+
+  // Top 20 items by revenue
+  const top20Items = itemReport.slice(0, 20)
+
+  // Revenue by type pie
+  const revenueByType = [
+    { type: 'Service', revenue: serviceRevenue },
+    { type: 'Product', revenue: productRevenue },
+  ]
+
+  return {
+    summary: {
+      totalRevenue,
+      totalItemsSold: totalItems,
+      uniqueItems: itemReport.length,
+      serviceRevenue,
+      productRevenue,
+      avgItemPrice: totalItems > 0 ? round2(totalRevenue / totalItems) : 0,
+    },
+    charts: {
+      top20Items: top20Items.map((i) => ({ name: i.name.length > 20 ? i.name.slice(0, 20) + '…' : i.name, revenue: i.revenue, qtySold: i.qtySold })),
+      revenueByType,
+      itemsByType: [
+        { type: 'Service', count: serviceItems.length },
+        { type: 'Product', count: productItems.length },
+      ],
+    },
+    details: {
+      items: itemReport,
+      topPerformers: top20Items.slice(0, 10),
+    },
+  }
+}
+
+// ─── 17. Category Sales Report ───────────────────────────────────────────────
+async function getSalesCategoryReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { not: 'refunded' },
+    },
+    include: { items: true },
+  })
+
+  const allItems = invoices.flatMap((inv) => inv.items)
+  const serviceItems = allItems.filter((i) => i.itemType === 'service')
+  const productItems = allItems.filter((i) => i.itemType === 'product')
+
+  const serviceRevenue = round2(serviceItems.reduce((s, i) => s + i.total, 0))
+  const productRevenue = round2(productItems.reduce((s, i) => s + i.total, 0))
+  const totalRevenue = round2(serviceRevenue + productRevenue)
+
+  // Service categories
+  const serviceCategoryMap = await buildServiceCategoryMap()
+  const svcCatAgg: Record<string, { categoryName: string; revenue: number; qty: number; count: number }> = {}
+  for (const item of serviceItems) {
+    const cat = serviceCategoryMap[item.name] || 'Uncategorized'
+    if (!svcCatAgg[cat]) svcCatAgg[cat] = { categoryName: cat, revenue: 0, qty: 0, count: 0 }
+    svcCatAgg[cat].revenue += item.total
+    svcCatAgg[cat].qty += item.quantity
+    svcCatAgg[cat].count++
+  }
+  const serviceCategoryReport = Object.values(svcCatAgg)
+    .map((c) => ({
+      ...c,
+      revenue: round2(c.revenue),
+      percentage: serviceRevenue > 0 ? round2((c.revenue / serviceRevenue) * 100) : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+
+  // Product categories
+  const productCategoryMap = await buildProductCategoryMap()
+  const prodCatAgg: Record<string, { categoryName: string; revenue: number; qty: number; count: number }> = {}
+  const productCostMap = await buildProductCostMap(productItems.map((i) => i.itemId).filter(Boolean) as string[])
+  const prodCatCOGS: Record<string, number> = {}
+  for (const item of productItems) {
+    const cat = productCategoryMap[item.name] || 'Uncategorized'
+    if (!prodCatAgg[cat]) { prodCatAgg[cat] = { categoryName: cat, revenue: 0, qty: 0, count: 0 }; prodCatCOGS[cat] = 0 }
+    prodCatAgg[cat].revenue += item.total
+    prodCatAgg[cat].qty += item.quantity
+    prodCatAgg[cat].count++
+    const costPrice = productCostMap[item.itemId ?? ''] ?? 0
+    prodCatCOGS[cat] += costPrice * item.quantity
+  }
+  const productCategoryReport = Object.values(prodCatAgg)
+    .map((c) => {
+      const cogs = round2(prodCatCOGS[c.categoryName] || 0)
+      const gp = round2(c.revenue - cogs)
+      return {
+        ...c,
+        revenue: round2(c.revenue),
+        cogs,
+        grossProfit: gp,
+        margin: c.revenue > 0 ? round2((gp / c.revenue) * 100) : 0,
+        percentage: productRevenue > 0 ? round2((c.revenue / productRevenue) * 100) : 0,
+      }
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+
+  // Combined view
+  const allCategories = new Set([...serviceCategoryReport.map((c) => c.categoryName), ...productCategoryReport.map((c) => c.categoryName)])
+  const combinedView = Array.from(allCategories).map((cat) => {
+    const svc = serviceCategoryReport.find((c) => c.categoryName === cat)
+    const prod = productCategoryReport.find((c) => c.categoryName === cat)
+    const total = (svc?.revenue || 0) + (prod?.revenue || 0)
+    return {
+      categoryName: cat,
+      serviceRevenue: round2(svc?.revenue || 0),
+      productRevenue: round2(prod?.revenue || 0),
+      totalRevenue: round2(total),
+    }
+  }).sort((a, b) => b.totalRevenue - a.totalRevenue)
+
+  return {
+    summary: {
+      totalRevenue,
+      serviceRevenue,
+      productRevenue,
+      serviceCategories: serviceCategoryReport.length,
+      productCategories: productCategoryReport.length,
+      servicePercentage: totalRevenue > 0 ? round2((serviceRevenue / totalRevenue) * 100) : 0,
+    },
+    charts: {
+      serviceCategoryRevenue: serviceCategoryReport.map((c) => ({ name: c.categoryName, revenue: c.revenue })),
+      productCategoryRevenue: productCategoryReport.map((c) => ({ name: c.categoryName, revenue: c.revenue })),
+      combinedComparison: combinedView.map((c) => ({
+        name: c.categoryName,
+        serviceRevenue: c.serviceRevenue,
+        productRevenue: c.productRevenue,
+        totalRevenue: c.totalRevenue,
+      })),
+    },
+    details: {
+      serviceCategories: serviceCategoryReport,
+      productCategories: productCategoryReport,
+      combinedView,
+    },
+  }
+}
+
+// ─── 18. Gross Profit Report ─────────────────────────────────────────────────
+async function getGrossProfitReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { not: 'refunded' },
+    },
+    include: { items: true },
+  })
+
+  const allItems = invoices.flatMap((inv) => inv.items)
+  const serviceRevenue = round2(allItems.filter((i) => i.itemType === 'service').reduce((s, i) => s + i.total, 0))
+  const productRevenue = round2(allItems.filter((i) => i.itemType === 'product').reduce((s, i) => s + i.total, 0))
+  const membershipRevenue = round2(allItems.filter((i) => i.itemType === 'membership').reduce((s, i) => s + i.total, 0))
+  const totalRevenue = round2(allItems.reduce((s, i) => s + i.total, 0))
+
+  // Product COGS
+  const productItems = allItems.filter((i) => i.itemType === 'product')
+  const productCostMap = await buildProductCostMap(productItems.map((i) => i.itemId).filter(Boolean) as string[])
+  const totalCOGS = round2(productItems.reduce((sum, item) => {
+    const costPrice = productCostMap[item.itemId ?? ''] ?? 0
+    return sum + costPrice * item.quantity
+  }, 0))
+
+  const grossProfit = round2(totalRevenue - totalCOGS)
+  const grossProfitMargin = totalRevenue > 0 ? round2((grossProfit / totalRevenue) * 100) : 0
+
+  // GP by category
+  const serviceCategoryMap = await buildServiceCategoryMap()
+  const productCategoryMap = await buildProductCategoryMap()
+  const catAgg: Record<string, { categoryName: string; revenue: number; cogs: number }> = {}
+  for (const item of allItems) {
+    const cat = item.itemType === 'service'
+      ? (serviceCategoryMap[item.name] || 'Uncategorized')
+      : (productCategoryMap[item.name] || 'Uncategorized')
+    if (!catAgg[cat]) catAgg[cat] = { categoryName: cat, revenue: 0, cogs: 0 }
+    catAgg[cat].revenue += item.total
+    if (item.itemType === 'product') {
+      const costPrice = productCostMap[item.itemId ?? ''] ?? 0
+      catAgg[cat].cogs += costPrice * item.quantity
+    }
+  }
+  const gpByCategory = Object.values(catAgg)
+    .map((c) => {
+      const gp = round2(c.revenue - c.cogs)
+      return {
+        categoryName: c.categoryName,
+        revenue: round2(c.revenue),
+        cogs: round2(c.cogs),
+        grossProfit: gp,
+        margin: c.revenue > 0 ? round2((gp / c.revenue) * 100) : 0,
+      }
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+
+  // Monthly GP trend
+  const monthlyGP: Record<string, { month: string; revenue: number; cogs: number; grossProfit: number }> = {}
+  for (const inv of invoices) {
+    const monthKey = format(new Date(inv.createdAt), 'yyyy-MM')
+    if (!monthlyGP[monthKey]) monthlyGP[monthKey] = { month: monthKey, revenue: 0, cogs: 0, grossProfit: 0 }
+    monthlyGP[monthKey].revenue += inv.totalAmount
+    for (const item of inv.items) {
+      if (item.itemType === 'product') {
+        const costPrice = productCostMap[item.itemId ?? ''] ?? 0
+        monthlyGP[monthKey].cogs += costPrice * item.quantity
+      }
+    }
+  }
+  const monthlyGPTrend = Object.values(monthlyGP)
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map((m) => ({
+      ...m,
+      revenue: round2(m.revenue),
+      cogs: round2(m.cogs),
+      grossProfit: round2(m.revenue - m.cogs),
+    }))
+
+  return {
+    summary: {
+      totalRevenue,
+      totalCOGS,
+      grossProfit,
+      grossProfitMargin,
+      serviceRevenue,
+      productRevenue,
+      membershipRevenue,
+    },
+    charts: {
+      revenueVsCOGS: monthlyGPTrend.map((m) => ({ month: m.month, revenue: m.revenue, cogs: m.cogs, grossProfit: m.grossProfit })),
+      gpByCategory: gpByCategory.map((c) => ({ name: c.categoryName, revenue: c.revenue, cogs: c.cogs, grossProfit: c.grossProfit })),
+      marginByCategory: gpByCategory.map((c) => ({ name: c.categoryName, margin: c.margin })),
+    },
+    details: {
+      gpByCategory,
+      monthlyGPTrend,
+    },
+  }
+}
+
+// ─── 19. Cost Analysis Report ─────────────────────────────────────────────────
+async function getCostAnalysisReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { not: 'refunded' },
+    },
+    include: { items: true },
+  })
+
+  const productItems = invoices.flatMap((inv) => inv.items).filter((i) => i.itemType === 'product')
+  const productCostMap = await buildProductCostMap(productItems.map((i) => i.itemId).filter(Boolean) as string[])
+  const productCategoryMap = await buildProductCategoryMap()
+
+  const totalCOGS = round2(productItems.reduce((sum, item) => {
+    const costPrice = productCostMap[item.itemId ?? ''] ?? 0
+    return sum + costPrice * item.quantity
+  }, 0))
+  const totalProductRevenue = round2(productItems.reduce((s, i) => s + i.total, 0))
+
+  // COGS by category
+  const catAgg: Record<string, { categoryName: string; totalCost: number; totalRevenue: number; qty: number }> = {}
+  for (const item of productItems) {
+    const cat = productCategoryMap[item.name] || 'Uncategorized'
+    if (!catAgg[cat]) catAgg[cat] = { categoryName: cat, totalCost: 0, totalRevenue: 0, qty: 0 }
+    const costPrice = productCostMap[item.itemId ?? ''] ?? 0
+    catAgg[cat].totalCost += costPrice * item.quantity
+    catAgg[cat].totalRevenue += item.total
+    catAgg[cat].qty += item.quantity
+  }
+  const cogsByCategory = Object.values(catAgg)
+    .map((c) => {
+      const gp = round2(c.totalRevenue - c.totalCost)
+      const markup = c.totalCost > 0 ? round2(((c.totalRevenue - c.totalCost) / c.totalCost) * 100) : 0
+      return {
+        categoryName: c.categoryName,
+        totalCost: round2(c.totalCost),
+        totalRevenue: round2(c.totalRevenue),
+        qty: c.qty,
+        grossProfit: gp,
+        margin: c.totalRevenue > 0 ? round2((gp / c.totalRevenue) * 100) : 0,
+        markup,
+      }
+    })
+    .sort((a, b) => b.totalCost - a.totalCost)
+
+  // Cost vs selling price comparison
+  const costVsPrice: Record<string, { name: string; sku: string; costPrice: number; sellingPrice: number; qtySold: number }> = {}
+  const products = await db.product.findMany({ select: { id: true, name: true, sku: true, costPrice: true, sellingPrice: true } })
+  const productDetailMap: Record<string, { name: string; sku: string; costPrice: number; sellingPrice: number }> = {}
+  for (const p of products) {
+    productDetailMap[p.id] = { name: p.name, sku: p.sku, costPrice: p.costPrice, sellingPrice: p.sellingPrice }
+  }
+  for (const item of productItems) {
+    const detail = productDetailMap[item.itemId ?? '']
+    if (!detail) continue
+    if (!costVsPrice[item.itemId!]) {
+      costVsPrice[item.itemId!] = { name: detail.name, sku: detail.sku, costPrice: detail.costPrice, sellingPrice: detail.sellingPrice, qtySold: 0 }
+    }
+    costVsPrice[item.itemId!].qtySold += item.quantity
+  }
+  const costVsPriceReport = Object.values(costVsPrice)
+    .map((c) => ({
+      ...c,
+      totalCost: round2(c.costPrice * c.qtySold),
+      totalRevenue: round2(c.sellingPrice * c.qtySold),
+      margin: c.sellingPrice > 0 ? round2(((c.sellingPrice - c.costPrice) / c.sellingPrice) * 100) : 0,
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+
+  // Fixed costs from expenses
+  const fixedExpenseResult = await db.expense.aggregate({
+    where: {
+      date: { gte: dateFrom, lte: dateTo },
+      category: { in: ['rent', 'utilities', 'payroll', 'maintenance'] },
+    },
+    _sum: { amount: true },
+  })
+  const totalFixedCosts = round2(fixedExpenseResult._sum.amount ?? 0)
+  const totalVariableCost = round2(Object.values(catAgg).reduce((s, c) => s + c.totalCost, 0))
+  const contributionMargin = totalProductRevenue > 0 ? round2(((totalProductRevenue - totalVariableCost) / totalProductRevenue) * 100) : 0
+
+  // Monthly cost trend
+  const monthlyCost: Record<string, { month: string; cost: number; revenue: number }> = {}
+  for (const item of productItems) {
+    const monthKey = format(new Date(item.createdAt), 'yyyy-MM')
+    if (!monthlyCost[monthKey]) monthlyCost[monthKey] = { month: monthKey, cost: 0, revenue: 0 }
+    const costPrice = productCostMap[item.itemId ?? ''] ?? 0
+    monthlyCost[monthKey].cost += costPrice * item.quantity
+    monthlyCost[monthKey].revenue += item.total
+  }
+  const monthlyCostTrend = Object.values(monthlyCost)
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map((m) => ({ ...m, cost: round2(m.cost), revenue: round2(m.revenue) }))
+
+  return {
+    summary: {
+      totalCOGS,
+      totalProductRevenue,
+      totalFixedCosts,
+      totalVariableCost,
+      contributionMargin,
+    },
+    charts: {
+      cogsByCategory: cogsByCategory.map((c) => ({ name: c.categoryName, totalCost: c.totalCost, totalRevenue: c.totalRevenue })),
+      monthlyCostTrend,
+      markupByCategory: cogsByCategory.map((c) => ({ name: c.categoryName, markup: c.markup, totalCost: c.totalCost, totalRevenue: c.totalRevenue })),
+    },
+    details: {
+      cogsByCategory,
+      costVsPrice: costVsPriceReport,
+    },
+  }
+}
+
+// ─── 20. Retail Product Sales Report ─────────────────────────────────────────
+async function getProductSalesReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { not: 'refunded' },
+    },
+    include: { items: true },
+  })
+
+  const allItems = invoices.flatMap((inv) => inv.items)
+  const productItems = allItems.filter((i) => i.itemType === 'product')
+  const serviceItems = allItems.filter((i) => i.itemType === 'service')
+
+  const products = await db.product.findMany({
+    include: { category: { select: { id: true, name: true } } },
+  })
+  const productDetailMap: Record<string, { name: string; sku: string; brand: string | null; costPrice: number; sellingPrice: number; categoryName: string }> = {}
+  for (const prod of products) {
+    productDetailMap[prod.id] = {
+      name: prod.name, sku: prod.sku, brand: prod.brand,
+      costPrice: prod.costPrice, sellingPrice: prod.sellingPrice, categoryName: prod.category.name,
+    }
+  }
+
+  // Build retail items
+  const retailItems = productItems.map((item) => {
+    const detail = productDetailMap[item.itemId ?? '']
+    const costPrice = detail?.costPrice ?? 0
+    const totalCost = costPrice * item.quantity
+    const grossMargin = round2(item.total - totalCost)
+    const marginPercent = item.total > 0 ? round2((grossMargin / item.total) * 100) : 0
+    return {
+      name: item.name, sku: detail?.sku ?? 'N/A', brand: detail?.brand ?? 'N/A',
+      category: detail?.categoryName ?? 'Uncategorized', qtySold: item.quantity,
+      unitPrice: round2(item.unitPrice), totalRevenue: round2(item.total),
+      costPrice: round2(costPrice), totalCost: round2(totalCost),
+      grossMargin, marginPercent,
+    }
+  })
+
+  // Aggregate by product name
+  const productAgg: Record<string, { name: string; sku: string; brand: string; category: string; qtySold: number; totalRevenue: number; totalCost: number }> = {}
+  for (const item of retailItems) {
+    if (!productAgg[item.name]) {
+      productAgg[item.name] = { name: item.name, sku: item.sku, brand: item.brand, category: item.category, qtySold: 0, totalRevenue: 0, totalCost: 0 }
+    }
+    productAgg[item.name].qtySold += item.qtySold
+    productAgg[item.name].totalRevenue += item.totalRevenue
+    productAgg[item.name].totalCost += item.totalCost
+  }
+
+  const productSummary = Object.values(productAgg)
+    .map((p) => {
+      const gm = round2(p.totalRevenue - p.totalCost)
+      return { ...p, totalRevenue: round2(p.totalRevenue), totalCost: round2(p.totalCost), grossMargin: gm, marginPercent: p.totalRevenue > 0 ? round2((gm / p.totalRevenue) * 100) : 0 }
+    })
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+
+  // Brand & category aggregations
+  const brandAgg: Record<string, { brand: string; qtySold: number; revenue: number }> = {}
+  for (const item of retailItems) {
+    const brand = item.brand || 'Unbranded'
+    if (!brandAgg[brand]) brandAgg[brand] = { brand, qtySold: 0, revenue: 0 }
+    brandAgg[brand].qtySold += item.qtySold
+    brandAgg[brand].revenue += item.totalRevenue
+  }
+  const salesByBrand = Object.values(brandAgg).map((b) => ({ ...b, revenue: round2(b.revenue) })).sort((a, b) => b.revenue - a.revenue)
+
+  const catAgg: Record<string, { category: string; qtySold: number; revenue: number }> = {}
+  for (const item of retailItems) {
+    if (!catAgg[item.category]) catAgg[item.category] = { category: item.category, qtySold: 0, revenue: 0 }
+    catAgg[item.category].qtySold += item.qtySold
+    catAgg[item.category].revenue += item.totalRevenue
+  }
+  const salesByCategory = Object.values(catAgg).map((c) => ({ ...c, revenue: round2(c.revenue) })).sort((a, b) => b.revenue - a.revenue)
+
+  const topPerformers = productSummary.slice(0, 10)
+  const slowMoving = [...productSummary].sort((a, b) => a.qtySold - b.qtySold).slice(0, 10)
+
+  const retailRevenue = round2(productItems.reduce((s, i) => s + i.total, 0))
+  const serviceRevenue = round2(serviceItems.reduce((s, i) => s + i.total, 0))
+  const combinedRevenue = round2(retailRevenue + serviceRevenue)
+
+  return {
+    summary: {
+      totalRetailRevenue: retailRevenue,
+      totalServiceRevenue: serviceRevenue,
+      combinedRevenue,
+      retailPercentage: combinedRevenue > 0 ? round2((retailRevenue / combinedRevenue) * 100) : 0,
+      totalProductsSold: productItems.reduce((s, i) => s + i.quantity, 0),
+      uniqueProducts: productSummary.length,
+      avgRetailMargin: productSummary.length > 0 ? round2(productSummary.reduce((s, p) => s + p.marginPercent, 0) / productSummary.length) : 0,
+    },
+    charts: {
+      salesByBrand,
+      salesByCategory,
+      retailVsService: [
+        { type: 'Retail', revenue: retailRevenue },
+        { type: 'Service', revenue: serviceRevenue },
+      ],
+      topPerformers: topPerformers.slice(0, 10).map((p) => ({ name: p.name.length > 20 ? p.name.slice(0, 20) + '…' : p.name, revenue: p.totalRevenue, qtySold: p.qtySold })),
+    },
+    details: {
+      products: productSummary,
+      topPerformers,
+      slowMoving,
+    },
+  }
+}
+
+// ─── 21. Salesperson Report ──────────────────────────────────────────────────
+async function getSalespersonReport(dateFrom: Date, dateTo: Date) {
+  const invoices = await db.invoice.findMany({
+    where: {
+      createdAt: { gte: dateFrom, lte: dateTo },
+      paymentStatus: { not: 'refunded' },
+    },
+    include: { items: true, branch: { select: { id: true, name: true } } },
+  })
+
+  const staffMembers = await db.staff.findMany({
+    select: {
+      id: true, firstName: true, lastName: true, email: true, role: true,
+      specialization: true, commissionRate: true, branchId: true,
+      branch: { select: { id: true, name: true } },
+    },
+  })
+  const staffMap: Record<string, { firstName: string; lastName: string; email: string; role: string; specialization: string | null; commissionRate: number; branchName: string }> = {}
+  for (const s of staffMembers) {
+    staffMap[s.id] = { firstName: s.firstName, lastName: s.lastName, email: s.email, role: s.role, specialization: s.specialization, commissionRate: s.commissionRate, branchName: s.branch.name }
+  }
+
+  // Aggregate by staffId
+  const staffAgg: Record<string, { staffId: string; totalSales: number; totalItemsSold: number; serviceSales: number; productSales: number; membershipSales: number; salesCount: number; monthlySales: Record<string, number> }> = {}
+  const invoiceCustomerMap: Record<string, string | null> = {}
+  for (const inv of invoices) { invoiceCustomerMap[inv.id] = inv.customerId }
+
+  for (const inv of invoices) {
+    for (const item of inv.items) {
+      if (!item.staffId) continue
+      if (!staffAgg[item.staffId]) {
+        staffAgg[item.staffId] = { staffId: item.staffId, totalSales: 0, totalItemsSold: 0, serviceSales: 0, productSales: 0, membershipSales: 0, salesCount: 0, monthlySales: {} }
+      }
+      const agg = staffAgg[item.staffId]
+      agg.totalSales += item.total
+      agg.totalItemsSold += item.quantity
+      agg.salesCount++
+      if (item.itemType === 'service') agg.serviceSales += item.total
+      else if (item.itemType === 'product') agg.productSales += item.total
+      else if (item.itemType === 'membership') agg.membershipSales += item.total
+      const monthKey = format(new Date(inv.createdAt), 'yyyy-MM')
+      agg.monthlySales[monthKey] = (agg.monthlySales[monthKey] ?? 0) + item.total
+    }
+  }
+
+  const salespersonReport = Object.values(staffAgg)
+    .map((agg) => {
+      const staff = staffMap[agg.staffId]
+      const name = staff ? `${staff.firstName} ${staff.lastName}` : 'Unknown Staff'
+      const avgSaleValue = agg.salesCount > 0 ? round2(agg.totalSales / agg.salesCount) : 0
+      const commissionEligible = round2(agg.totalSales * (staff?.commissionRate ?? 0))
+      return {
+        staffId: agg.staffId, name, email: staff?.email ?? 'N/A', role: staff?.role ?? 'N/A',
+        specialization: staff?.specialization ?? null,
+        totalSales: round2(agg.totalSales), totalItemsSold: agg.totalItemsSold,
+        avgSaleValue, serviceSales: round2(agg.serviceSales), productSales: round2(agg.productSales),
+        membershipSales: round2(agg.membershipSales),
+        commissionRate: staff?.commissionRate ?? 0, commissionEligible,
+        branchName: staff?.branchName ?? 'N/A',
+      }
+    })
+    .sort((a, b) => b.totalSales - a.totalSales)
+
+  const topPerformers = salespersonReport.slice(0, 10)
+
+  // Monthly trend for top 5
+  const top5Ids = topPerformers.slice(0, 5).map((s) => s.staffId)
+  const monthlySalesTrend: Record<string, Record<string, number>> = {}
+  for (const agg of Object.values(staffAgg)) {
+    if (!top5Ids.includes(agg.staffId)) continue
+    const staff = staffMap[agg.staffId]
+    const name = staff ? `${staff.firstName} ${staff.lastName}` : 'Unknown'
+    for (const [month, sales] of Object.entries(agg.monthlySales)) {
+      if (!monthlySalesTrend[month]) monthlySalesTrend[month] = {}
+      monthlySalesTrend[month][name] = round2(sales)
+    }
+  }
+
+  // Unattributed sales
+  const unattributedItems = invoices.flatMap((inv) => inv.items).filter((i) => !i.staffId)
+  const unattributedSales = round2(unattributedItems.reduce((s, i) => s + i.total, 0))
+
+  return {
+    summary: {
+      totalSalespeople: salespersonReport.length,
+      totalAttributedSales: round2(salespersonReport.reduce((s, sp) => s + sp.totalSales, 0)),
+      totalCommissionEligible: round2(salespersonReport.reduce((s, sp) => s + sp.commissionEligible, 0)),
+      unattributedSales,
+      unattributedItems: unattributedItems.length,
+      avgSalesPerPerson: salespersonReport.length > 0 ? round2(salespersonReport.reduce((s, sp) => s + sp.totalSales, 0) / salespersonReport.length) : 0,
+    },
+    charts: {
+      topPerformersChart: topPerformers.map((s) => ({ name: s.name, totalSales: s.totalSales, serviceSales: s.serviceSales, productSales: s.productSales })),
+      monthlySalesTrend: Object.entries(monthlySalesTrend).sort(([a], [b]) => a.localeCompare(b)).map(([month, salesByPerson]) => ({ month, ...salesByPerson })),
+      salesTypeDistribution: salespersonReport.map((s) => ({ name: s.name, service: s.serviceSales, product: s.productSales, membership: s.membershipSales })),
+    },
+    details: {
+      salespeople: salespersonReport,
+      topPerformers,
+    },
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -1319,6 +1990,24 @@ export async function GET(request: NextRequest) {
         break
       case 'hourly_sales':
         data = await getHourlySalesReport(dateFrom, dateTo)
+        break
+      case 'sales_item':
+        data = await getSalesItemReport(dateFrom, dateTo)
+        break
+      case 'sales_category':
+        data = await getSalesCategoryReport(dateFrom, dateTo)
+        break
+      case 'gross_profit':
+        data = await getGrossProfitReport(dateFrom, dateTo)
+        break
+      case 'cost_analysis':
+        data = await getCostAnalysisReport(dateFrom, dateTo)
+        break
+      case 'product_sales':
+        data = await getProductSalesReport(dateFrom, dateTo)
+        break
+      case 'salesperson':
+        data = await getSalespersonReport(dateFrom, dateTo)
         break
       default:
         return NextResponse.json(
