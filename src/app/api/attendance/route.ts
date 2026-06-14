@@ -183,9 +183,31 @@ export async function PATCH(request: NextRequest) {
     }
 
     const clockOutTime = clockOut ? new Date(clockOut) : new Date()
+
+    // Calculate hours worked and determine status
+    let newStatus = record.status
+    if (record.clockIn) {
+      const clockInTime = new Date(record.clockIn)
+      const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60)
+
+      // Late threshold: 10:00 AM (configurable)
+      const LATE_HOUR = 10
+      const clockInHour = clockInTime.getHours()
+      const clockInMinute = clockInTime.getMinutes()
+      const isLate = clockInHour > LATE_HOUR || (clockInHour === LATE_HOUR && clockInMinute > 0)
+
+      if (hoursWorked < 4) {
+        newStatus = 'half_day'
+      } else if (isLate) {
+        newStatus = 'late'
+      } else {
+        newStatus = 'present'
+      }
+    }
+
     const updated = await db.attendance.update({
       where: { id: record.id },
-      data: { clockOut: clockOutTime },
+      data: { clockOut: clockOutTime, status: newStatus },
       include: {
         staff: {
           select: {

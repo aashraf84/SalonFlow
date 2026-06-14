@@ -183,7 +183,7 @@ export function PosModule() {
 
   // ─── Cart Logic ─────────────────────────────────────────────────────────
   const allServices = useMemo(() =>
-    categories.flatMap(cat => cat.services.map(svc => ({ ...svc, categoryName: cat.name, categoryId: cat.id }))),
+    categories.flatMap(cat => cat.services.map(svc => ({ ...svc, categoryName: cat.name, categoryId: cat.id, categoryIcon: cat.icon || categoryIcons[cat.name] || '✨' }))),
     [categories]
   )
 
@@ -648,7 +648,7 @@ export function PosModule() {
                     <SelectItem value="all">All Categories</SelectItem>
                     {categories.map(cat => (
                       <SelectItem key={cat.id} value={cat.id}>
-                        {categoryIcons[cat.name] || '✨'} {cat.name}
+                        {cat.icon || categoryIcons[cat.name] || '✨'} {cat.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -682,7 +682,7 @@ export function PosModule() {
                           )}
                         >
                           <div className={cn('flex size-8 items-center justify-center rounded-lg shrink-0 text-xs', inCart ? 'bg-rose-500/10 text-rose-500' : 'bg-foreground/[0.03] text-muted-foreground')}>
-                            {categoryIcons[service.categoryName || ''] || '✨'}
+                            {service.categoryIcon}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold truncate">{service.name}</p>

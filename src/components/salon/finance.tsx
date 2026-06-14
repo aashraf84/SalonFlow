@@ -86,6 +86,9 @@ interface FinanceData {
   revenueByPayment: { paymentMethod: string; amount: number }[]
   invoiceCount: number
   expenseCount: number
+  monthlyRevenue: { month: string; revenue: number; expenses: number }[]
+  previousRevenue: number
+  previousExpenses: number
 }
 
 const EXPENSE_COLORS = [
@@ -148,39 +151,12 @@ export default function FinanceModule() {
       if (dateFrom) params.set('from', dateFrom)
       if (dateTo) params.set('to', dateTo)
 
-      const [financeRes, expensesRes] = await Promise.all([
-        fetch(`/api/finance?${params.toString()}`),
-        fetch('/api/expenses?take=50'),
-      ])
+      const financeRes = await fetch(`/api/finance?${params.toString()}`)
       const json = await financeRes.json()
-      const expensesJson = await expensesRes.json()
 
       if (json.success) {
         setData(json.data)
-
-        // Build monthly data from actual expenses
-        const allExpenses: {date: string; amount: number}[] = expensesJson.success ? expensesJson.data : []
-        const totalRev = json.data.totalRevenue || 0
-        const totalExp = json.data.totalExpenses || 0
-
-        // Group expenses by month
-        const monthMap: Record<string, number> = {}
-        for (const exp of allExpenses) {
-          const d = new Date(exp.date)
-          const key = d.toLocaleDateString('en-US', { month: 'short' })
-          monthMap[key] = (monthMap[key] || 0) + exp.amount
-        }
-
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        const now = new Date()
-        const months = monthNames.slice(Math.max(0, now.getMonth() - 5), now.getMonth() + 1)
-
-        const monthly = months.map((month) => ({
-          month,
-          revenue: Math.round(totalRev / months.length),
-          expenses: Math.round(monthMap[month] || totalExp / months.length),
-        }))
-        setMonthlyData(monthly)
+        setMonthlyData(json.data.monthlyRevenue || [])
       }
     } catch (err) {
       console.error('Failed to fetch finance data:', err)
@@ -337,9 +313,25 @@ export default function FinanceModule() {
               {formatCurrency(data?.totalRevenue || 0)}
             </div>
             <div className="flex items-center gap-1 mt-1">
-              <ArrowUpRight className="h-3 w-3 text-emerald-500" />
-              <span className="text-xs text-emerald-500">+12.5%</span>
-              <span className="text-xs text-muted-foreground">vs last period</span>
+              {data && data.previousRevenue > 0 ? (() => {
+                const change = ((data.totalRevenue - data.previousRevenue) / data.previousRevenue * 100).toFixed(1)
+                const isPositive = parseFloat(change) >= 0
+                return (
+                  <>
+                    {isPositive ? (
+                      <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+                    ) : (
+                      <ArrowDownRight className="h-3 w-3 text-red-500" />
+                    )}
+                    <span className={`text-xs ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {isPositive ? '+' : ''}{change}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">vs last period</span>
+                  </>
+                )
+              })() : (
+                <span className="text-xs text-muted-foreground">No prior data</span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -356,9 +348,25 @@ export default function FinanceModule() {
               {formatCurrency(data?.totalExpenses || 0)}
             </div>
             <div className="flex items-center gap-1 mt-1">
-              <ArrowDownRight className="h-3 w-3 text-red-500" />
-              <span className="text-xs text-red-500">+8.2%</span>
-              <span className="text-xs text-muted-foreground">vs last period</span>
+              {data && data.previousExpenses > 0 ? (() => {
+                const change = ((data.totalExpenses - data.previousExpenses) / data.previousExpenses * 100).toFixed(1)
+                const isPositive = parseFloat(change) >= 0
+                return (
+                  <>
+                    {isPositive ? (
+                      <ArrowUpRight className="h-3 w-3 text-red-500" />
+                    ) : (
+                      <ArrowDownRight className="h-3 w-3 text-emerald-500" />
+                    )}
+                    <span className={`text-xs ${isPositive ? 'text-red-500' : 'text-emerald-500'}`}>
+                      {isPositive ? '+' : ''}{change}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">vs last period</span>
+                  </>
+                )
+              })() : (
+                <span className="text-xs text-muted-foreground">No prior data</span>
+              )}
             </div>
           </CardContent>
         </Card>

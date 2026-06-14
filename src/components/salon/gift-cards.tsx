@@ -83,16 +83,6 @@ function getStatusBadge(status: string): { label: string; className: string } {
   }
 }
 
-function generateGiftCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = 'SF-'
-  for (let i = 0; i < 8; i++) {
-    if (i === 4) code += '-'
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return code
-}
-
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
 function GiftCardSkeleton() {
@@ -221,7 +211,6 @@ export function GiftCardModule() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          code: generateGiftCode(),
           initialBalance: parseFloat(issueForm.initialBalance),
           recipientName: issueForm.recipientName,
           recipientEmail: issueForm.recipientEmail || undefined,

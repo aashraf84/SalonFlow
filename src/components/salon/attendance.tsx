@@ -130,10 +130,16 @@ export function AttendanceModule() {
   const handleClockIn = async (staffId: string) => {
     try {
       setClockingId(staffId)
+      // Look up the staff member's branchId from existing records
+      const staffRecord = records.find((r) => r.staffId === staffId)
+      const branchId = staffRecord?.staff?.branch?.id
+        || staffRecord?.branchId
+        || records.find((r) => r.staff?.branch)?.staff?.branch?.id
+        || 'default'
       const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId, branchId: 'default' }),
+        body: JSON.stringify({ staffId, branchId }),
       })
       const json = await res.json()
       if (json.success) {

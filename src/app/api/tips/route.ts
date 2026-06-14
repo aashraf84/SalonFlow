@@ -39,6 +39,13 @@ export async function GET(request: NextRequest) {
               role: true,
             },
           },
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
         },
       }),
       db.tip.count({ where }),
@@ -115,6 +122,13 @@ export async function POST(request: NextRequest) {
             firstName: true,
             lastName: true,
             role: true,
+          },
+        },
+        customer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
           },
         },
       },

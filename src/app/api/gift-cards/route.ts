@@ -107,28 +107,33 @@ export async function POST(request: NextRequest) {
       exists = await db.giftCard.findUnique({ where: { code } })
     }
 
-    const giftCard = await db.giftCard.create({
-      data: {
-        code,
-        initialBalance,
-        remainingBalance: initialBalance,
-        purchasedBy: purchasedBy || null,
-        recipientName: recipientName || null,
-        recipientEmail: recipientEmail || null,
-        recipientPhone: recipientPhone || null,
-        message: message || null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-      },
-    })
+    // Use transaction for data integrity - gift card + initial purchase transaction are atomic
+    const giftCard = await db.$transaction(async (tx) => {
+      const card = await tx.giftCard.create({
+        data: {
+          code,
+          initialBalance,
+          remainingBalance: initialBalance,
+          purchasedBy: purchasedBy || null,
+          recipientName: recipientName || null,
+          recipientEmail: recipientEmail || null,
+          recipientPhone: recipientPhone || null,
+          message: message || null,
+          expiresAt: expiresAt ? new Date(expiresAt) : null,
+        },
+      })
 
-    // Create initial purchase transaction
-    await db.giftCardTransaction.create({
-      data: {
-        giftCardId: giftCard.id,
-        type: 'purchase',
-        amount: initialBalance,
-        description: 'Initial gift card purchase',
-      },
+      // Create initial purchase transaction
+      await tx.giftCardTransaction.create({
+        data: {
+          giftCardId: card.id,
+          type: 'purchase',
+          amount: initialBalance,
+          description: 'Initial gift card purchase',
+        },
+      })
+
+      return card
     })
 
     return NextResponse.json({ success: true, data: giftCard }, { status: 201 })

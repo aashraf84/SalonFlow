@@ -38,6 +38,12 @@ interface StaffInfo {
   role: string
 }
 
+interface CustomerInfo {
+  id: string
+  firstName: string
+  lastName: string
+}
+
 interface TipData {
   id: string
   invoiceId: string | null
@@ -48,6 +54,20 @@ interface TipData {
   status: string
   createdAt: string
   staff: StaffInfo
+  customer?: CustomerInfo | null
+}
+
+interface CustomerOption {
+  id: string
+  firstName: string
+  lastName: string
+  phone: string
+}
+
+interface InvoiceOption {
+  id: string
+  invoiceNumber: string
+  totalAmount: number
 }
 
 interface TipStats {
@@ -97,6 +117,7 @@ export function TipsModule() {
   const [stats, setStats] = useState<TipStats>({ totalAmount: 0, totalCount: 0, pendingAmount: 0, paidAmount: 0 })
 
   // Filters
+  const [searchQuery, setSearchQuery] = useState('')
   const [staffFilter, setStaffFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [startDate, setStartDate] = useState('')
@@ -112,6 +133,12 @@ export function TipsModule() {
   const [formAmount, setFormAmount] = useState('')
   const [formPaymentMethod, setFormPaymentMethod] = useState('cash')
   const [formInvoiceId, setFormInvoiceId] = useState('')
+
+  // Dropdown data for dialog
+  const [customerList, setCustomerList] = useState<CustomerOption[]>([])
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [invoiceList, setInvoiceList] = useState<InvoiceOption[]>([])
+  const [invoiceSearch, setInvoiceSearch] = useState('')
 
   const fetchTips = useCallback(async () => {
     try {
@@ -176,6 +203,72 @@ export function TipsModule() {
     return Array.from(map.values())
   }, [tips])
 
+  // Client-side search filter
+  const filteredTips = useMemo(() => {
+    if (!searchQuery.trim()) return tips
+    const q = searchQuery.toLowerCase()
+    return tips.filter((t) => {
+      const staffName = `${t.staff.firstName} ${t.staff.lastName}`.toLowerCase()
+      const amountStr = t.amount.toString()
+      return staffName.includes(q) || amountStr.includes(q)
+    })
+  }, [tips, searchQuery])
+
+  // Fetch customers & invoices when dialog opens
+  useEffect(() => {
+    if (!dialogOpen) return
+    const fetchDropdownData = async () => {
+      try {
+        const [custRes, invRes] = await Promise.all([
+          fetch('/api/customers?take=50'),
+          fetch('/api/invoices?take=50'),
+        ])
+        const custJson = await custRes.json()
+        const invJson = await invRes.json()
+        if (custJson.success) {
+          setCustomerList(
+            custJson.data.map((c: { id: string; firstName: string; lastName: string; phone: string }) => ({
+              id: c.id,
+              firstName: c.firstName,
+              lastName: c.lastName,
+              phone: c.phone,
+            }))
+          )
+        }
+        if (invJson.success) {
+          setInvoiceList(
+            invJson.data.map((i: { id: string; invoiceNumber: string; totalAmount: number }) => ({
+              id: i.id,
+              invoiceNumber: i.invoiceNumber,
+              totalAmount: i.totalAmount,
+            }))
+          )
+        }
+      } catch {
+        // Silently fail - dropdowns will just be empty
+      }
+    }
+    fetchDropdownData()
+  }, [dialogOpen])
+
+  // Filtered dropdown lists
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customerList
+    const q = customerSearch.toLowerCase()
+    return customerList.filter(
+      (c) =>
+        c.firstName.toLowerCase().includes(q) ||
+        c.lastName.toLowerCase().includes(q) ||
+        c.phone.toLowerCase().includes(q)
+    )
+  }, [customerList, customerSearch])
+
+  const filteredInvoices = useMemo(() => {
+    if (!invoiceSearch.trim()) return invoiceList
+    const q = invoiceSearch.toLowerCase()
+    return invoiceList.filter((i) => i.invoiceNumber.toLowerCase().includes(q))
+  }, [invoiceList, invoiceSearch])
+
   const handleAddTip = async () => {
     if (!formStaffId || !formAmount || parseFloat(formAmount) <= 0) {
       toast.error('Please select staff and enter a valid amount')
@@ -191,8 +284,8 @@ export function TipsModule() {
           staffId: formStaffId,
           amount: parseFloat(formAmount),
           paymentMethod: formPaymentMethod,
-          customerId: formCustomerId || null,
-          invoiceId: formInvoiceId || null,
+          customerId: formCustomerId && formCustomerId !== 'none' ? formCustomerId : null,
+          invoiceId: formInvoiceId && formInvoiceId !== 'none' ? formInvoiceId : null,
         }),
       })
       const json = await res.json()
@@ -393,7 +486,7 @@ export function TipsModule() {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input placeholder="Search tips..." className="pl-9" disabled />
+            <Input placeholder="Search tips..." className="pl-9" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
           <Select value={staffFilter} onValueChange={setStaffFilter}>
             <SelectTrigger className="w-full sm:w-[180px]">
@@ -445,7 +538,7 @@ export function TipsModule() {
                     ))}
                   </TableRow>
                 ))
-              ) : tips.length === 0 ? (
+              ) : filteredTips.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <DollarSign className="size-10 mx-auto mb-3 opacity-30" />
@@ -455,7 +548,7 @@ export function TipsModule() {
                 </TableRow>
               ) : (
                 <AnimatePresence>
-                  {tips.map((tip) => (
+                  {filteredTips.map((tip) => (
                     <motion.tr
                       key={tip.id}
                       initial={{ opacity: 0, y: 8 }}
@@ -472,7 +565,7 @@ export function TipsModule() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {tip.customerId ? tip.customerId.substring(0, 8) + '...' : '—'}
+                        {tip.customer ? `${tip.customer.firstName} ${tip.customer.lastName}` : '—'}
                       </TableCell>
                       <TableCell className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
                         {formatCurrency(tip.amount)}
@@ -563,20 +656,40 @@ export function TipsModule() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Customer ID (optional)</Label>
+              <Label>Customer (optional)</Label>
               <Input
-                value={formCustomerId}
-                onChange={(e) => setFormCustomerId(e.target.value)}
-                placeholder="Customer ID"
+                placeholder="Search customers..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="mb-1"
               />
+              <Select value={formCustomerId} onValueChange={setFormCustomerId}>
+                <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {filteredCustomers.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.phone})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Invoice ID (optional)</Label>
+              <Label>Invoice (optional)</Label>
               <Input
-                value={formInvoiceId}
-                onChange={(e) => setFormInvoiceId(e.target.value)}
-                placeholder="Invoice ID"
+                placeholder="Search invoices..."
+                value={invoiceSearch}
+                onChange={(e) => setInvoiceSearch(e.target.value)}
+                className="mb-1"
               />
+              <Select value={formInvoiceId} onValueChange={setFormInvoiceId}>
+                <SelectTrigger><SelectValue placeholder="Select invoice" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {filteredInvoices.map((i) => (
+                    <SelectItem key={i.id} value={i.id}>{i.invoiceNumber} — {formatCurrency(i.totalAmount)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

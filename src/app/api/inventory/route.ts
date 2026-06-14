@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
     if (lowStock) {
       // Filter items where quantity <= product's reorderLevel
-      // SQLite doesn't support field-level comparison in where, so we filter in-memory
+      // Prisma doesn't support cross-field comparison in where, so we filter in memory
       const allItems = await db.inventoryItem.findMany({
         where: { branchId: branchId || undefined },
         include: {
@@ -121,39 +121,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: item })
     }
 
-    // For add/subtract, we need to get the current value first
-    const currentItem = await db.inventoryItem.findUnique({
-      where: { id },
-    })
+    // For add/subtract, use $transaction to prevent race conditions under concurrent requests
+    const item = await db.$transaction(async (tx) => {
+      const currentItem = await tx.inventoryItem.findUnique({
+        where: { id },
+      })
 
-    if (!currentItem) {
-      return NextResponse.json(
-        { success: false, error: 'Inventory item not found' },
-        { status: 404 }
-      )
-    }
+      if (!currentItem) {
+        throw new Error('Inventory item not found')
+      }
 
-    const newQuantity =
-      op === 'add'
-        ? currentItem.quantity + parseInt(String(quantity))
-        : Math.max(0, currentItem.quantity - parseInt(String(quantity)))
+      const newQuantity =
+        op === 'add'
+          ? currentItem.quantity + parseInt(String(quantity))
+          : Math.max(0, currentItem.quantity - parseInt(String(quantity)))
 
-    const item = await db.inventoryItem.update({
-      where: { id },
-      data: {
-        quantity: newQuantity,
-        batchNumber: batchNumber || undefined,
-        expiryDate: expiryDate ? new Date(expiryDate) : undefined,
-        lastRestocked: op === 'add' ? new Date() : undefined,
-      },
-      include: {
-        product: {
-          include: { category: true },
+      const updated = await tx.inventoryItem.update({
+        where: { id },
+        data: {
+          quantity: newQuantity,
+          batchNumber: batchNumber || undefined,
+          expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+          lastRestocked: op === 'add' ? new Date() : undefined,
         },
-        branch: {
-          select: { id: true, name: true, branchCode: true },
+        include: {
+          product: {
+            include: { category: true },
+          },
+          branch: {
+            select: { id: true, name: true, branchCode: true },
+          },
         },
-      },
+      })
+
+      return updated
     })
 
     return NextResponse.json({ success: true, data: item })

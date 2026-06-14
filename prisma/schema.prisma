@@ -129,6 +129,7 @@ model Customer {
   memberships   Membership[]
   loyaltyTransactions LoyaltyTransaction[]
   customerDocuments CustomerDocument[]
+  tips            Tip[]
 
   @@index([phone])
   @@index([email])
@@ -559,9 +560,11 @@ model Tip {
   createdAt     DateTime @default(now())
 
   staff         Staff    @relation(fields: [staffId], references: [id])
+  customer      Customer? @relation(fields: [customerId], references: [id])
 
   @@index([staffId])
   @@index([invoiceId])
+  @@index([customerId])
 }
 
 // Customer Feedback / Reviews

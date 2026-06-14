@@ -143,59 +143,65 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create transaction
-    const transaction = await db.loyaltyTransaction.create({
-      data: {
-        customerId,
-        type,
-        points,
-        description: description || null,
-        referenceId: referenceId || null,
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            loyaltyTier: true,
-            loyaltyPoints: true,
+    // Use transaction for data integrity - create transaction, update points, and tier upgrade are atomic
+    const pointsDelta = type === 'redeem' ? -points : points
+
+    const result = await db.$transaction(async (tx) => {
+      // Create loyalty transaction
+      const transaction = await tx.loyaltyTransaction.create({
+        data: {
+          customerId,
+          type,
+          points,
+          description: description || null,
+          referenceId: referenceId || null,
+        },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              loyaltyTier: true,
+              loyaltyPoints: true,
+            },
           },
         },
-      },
-    })
-
-    // Update customer loyalty points
-    const pointsDelta = type === 'redeem' ? -points : points
-    const updatedCustomer = await db.customer.update({
-      where: { id: customerId },
-      data: { loyaltyPoints: { increment: pointsDelta } },
-    })
-
-    // Determine tier upgrade
-    const newPoints = updatedCustomer.loyaltyPoints
-    let newTier = customer.loyaltyTier
-    if (newPoints >= 10000) newTier = 'vip'
-    else if (newPoints >= 5000) newTier = 'platinum'
-    else if (newPoints >= 2000) newTier = 'gold'
-    else newTier = 'silver'
-
-    if (newTier !== customer.loyaltyTier) {
-      await db.customer.update({
-        where: { id: customerId },
-        data: { loyaltyTier: newTier },
       })
-    }
 
-    return NextResponse.json({
-      success: true,
-      data: {
+      // Update customer loyalty points
+      const updatedCustomer = await tx.customer.update({
+        where: { id: customerId },
+        data: { loyaltyPoints: { increment: pointsDelta } },
+      })
+
+      // Determine tier upgrade
+      const newPoints = updatedCustomer.loyaltyPoints
+      let newTier = customer.loyaltyTier
+      if (newPoints >= 10000) newTier = 'vip'
+      else if (newPoints >= 5000) newTier = 'platinum'
+      else if (newPoints >= 2000) newTier = 'gold'
+      else newTier = 'silver'
+
+      if (newTier !== customer.loyaltyTier) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: { loyaltyTier: newTier },
+        })
+      }
+
+      return {
         transaction,
         previousPoints: customer.loyaltyPoints,
         newPoints: updatedCustomer.loyaltyPoints,
         tierUpgraded: newTier !== customer.loyaltyTier,
         newTier: newTier !== customer.loyaltyTier ? newTier : undefined,
-      },
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: result,
     }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to process loyalty transaction'
