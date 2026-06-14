@@ -521,7 +521,7 @@ export function MainAppShell() {
         {/* ─── Sticky Footer ───────────────────────────────────────────────── */}
         <footer className="border-t border-border/50 header-vibrancy px-6 py-3">
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span className="font-medium">SalonFlow OS — ApexFlow Ecosystem</span>
+            <span className="font-medium">SalonFlow © 2026 ApexFlow Ecosystem. All rights reserved.</span>
             <span className="font-mono">v1.0.0 Enterprise</span>
           </div>
         </footer>
